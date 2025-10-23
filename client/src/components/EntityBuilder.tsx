@@ -16,7 +16,7 @@ import { Card } from '@/components/ui/card';
 import { Plus, Trash2, Users, Edit2, Check, X } from 'lucide-react';
 
 const DATA_TYPES = ['string', 'int', 'boolean', 'datetime', 'decimal', 'text', 'uuid'];
-const CARDINALITY_OPTIONS = ['one-to-one', 'one-to-many'] as const;
+const CARDINALITY_OPTIONS = ['one-to-one', 'one-to-many', 'many-to-one'] as const;
 
 interface EntityBuilderProps {
   entities: Entity[];
@@ -596,6 +596,7 @@ function FieldRow({ field, entities, currentEntityId, onUpdate, onDelete }: Fiel
                     <SelectContent>
                       <SelectItem value="one-to-one">One-to-One</SelectItem>
                       <SelectItem value="one-to-many">One-to-Many</SelectItem>
+                      <SelectItem value="many-to-one">Many-to-One</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

@@ -8,7 +8,7 @@ export interface Field {
   fkReference?: {
     targetEntityId: string;
     targetFieldId: string;
-    cardinality: 'one-to-one' | 'one-to-many';
+    cardinality: 'one-to-one' | 'one-to-many' | 'many-to-one';
   };
 }
 
