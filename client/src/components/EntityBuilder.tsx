@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
-import { Plus, Trash2, Users } from 'lucide-react';
+import { Plus, Trash2, Users, Edit2, Check, X } from 'lucide-react';
 
 const DATA_TYPES = ['string', 'int', 'boolean', 'datetime', 'decimal', 'text', 'uuid'];
 const CARDINALITY_OPTIONS = ['one-to-one', 'one-to-many'] as const;
@@ -271,7 +271,209 @@ interface FieldRowProps {
 }
 
 function FieldRow({ field, entities, currentEntityId, onUpdate, onDelete }: FieldRowProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState<Field>(field);
   const otherEntities = entities.filter(e => e.id !== currentEntityId);
+
+  const handleStartEdit = () => {
+    setEditData(field);
+    setIsEditing(true);
+  };
+
+  const handleSave = () => {
+    onUpdate(editData);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditData(field);
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <Card className="p-4 bg-base border-primary">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm text-text">Field Name</Label>
+              <Input
+                value={editData.name}
+                onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                className="border-neutral focus:border-primary"
+                data-testid={`input-edit-field-name-${field.id}`}
+              />
+            </div>
+            <div>
+              <Label className="text-sm text-text">Data Type</Label>
+              <Select
+                value={editData.type}
+                onValueChange={(value) => setEditData({ ...editData, type: value })}
+              >
+                <SelectTrigger className="border-neutral">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DATA_TYPES.map(type => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex gap-6">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={`edit-pk-${field.id}`}
+                checked={editData.isPK}
+                onCheckedChange={(checked) =>
+                  setEditData({ ...editData, isPK: checked as boolean })
+                }
+              />
+              <Label htmlFor={`edit-pk-${field.id}`} className="text-sm text-text cursor-pointer">
+                Primary Key
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={`edit-fk-${field.id}`}
+                checked={editData.isFK}
+                onCheckedChange={(checked) =>
+                  setEditData({ ...editData, isFK: checked as boolean })
+                }
+              />
+              <Label htmlFor={`edit-fk-${field.id}`} className="text-sm text-text cursor-pointer">
+                Foreign Key
+              </Label>
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-sm text-text">Notes</Label>
+            <Textarea
+              value={editData.notes}
+              onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+              className="border-neutral focus:border-primary min-h-[60px]"
+            />
+          </div>
+
+          {editData.isFK && (
+            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-neutral">
+              <div>
+                <Label className="text-xs text-neutral">Related Entity</Label>
+                <Select
+                  value={editData.fkReference?.targetEntityId || ''}
+                  onValueChange={(value) =>
+                    setEditData({
+                      ...editData,
+                      fkReference: {
+                        targetEntityId: value,
+                        targetFieldId: '',
+                        cardinality: editData.fkReference?.cardinality || 'one-to-many',
+                      },
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-8 text-xs border-neutral">
+                    <SelectValue placeholder="Select entity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {otherEntities.map(entity => (
+                      <SelectItem key={entity.id} value={entity.id}>
+                        {entity.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {editData.fkReference?.targetEntityId && (
+                <>
+                  <div>
+                    <Label className="text-xs text-neutral">Related Field</Label>
+                    <Select
+                      value={editData.fkReference.targetFieldId}
+                      onValueChange={(value) =>
+                        setEditData({
+                          ...editData,
+                          fkReference: {
+                            ...editData.fkReference!,
+                            targetFieldId: value,
+                          },
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-8 text-xs border-neutral">
+                        <SelectValue placeholder="Select field" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {entities
+                          .find(e => e.id === editData.fkReference!.targetEntityId)
+                          ?.fields.map(f => (
+                            <SelectItem key={f.id} value={f.id}>
+                              {f.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-neutral">Cardinality</Label>
+                    <Select
+                      value={editData.fkReference.cardinality}
+                      onValueChange={(value: typeof CARDINALITY_OPTIONS[number]) =>
+                        setEditData({
+                          ...editData,
+                          fkReference: {
+                            ...editData.fkReference!,
+                            cardinality: value,
+                          },
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-8 text-xs border-neutral">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="one-to-one">One-to-One</SelectItem>
+                        <SelectItem value="one-to-many">One-to-Many</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancel}
+              className="text-neutral hover:bg-neutral/10"
+              data-testid={`button-cancel-edit-${field.id}`}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              className="bg-success hover:bg-success/80 text-white"
+              data-testid={`button-save-edit-${field.id}`}
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Save
+            </Button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="p-4 bg-white border-neutral">
@@ -294,30 +496,40 @@ function FieldRow({ field, entities, currentEntityId, onUpdate, onDelete }: Fiel
               <p className="text-sm text-neutral">{field.notes}</p>
             )}
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-error hover:bg-error/10"
-            onClick={onDelete}
-            data-testid={`button-delete-field-${field.id}`}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-primary hover:bg-primary/10"
+              onClick={handleStartEdit}
+              data-testid={`button-edit-field-${field.id}`}
+            >
+              <Edit2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-error hover:bg-error/10"
+              onClick={onDelete}
+              data-testid={`button-delete-field-${field.id}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
-        {field.isFK && (
+        {field.isFK && field.fkReference && (
           <div className="grid grid-cols-3 gap-2 pt-2 border-t border-neutral">
             <div>
               <Label className="text-xs text-neutral">Related Entity</Label>
               <Select
-                value={field.fkReference?.targetEntityId || ''}
+                value={field.fkReference.targetEntityId}
                 onValueChange={(value) =>
                   onUpdate({
                     fkReference: {
                       ...field.fkReference!,
                       targetEntityId: value,
                       targetFieldId: '',
-                      cardinality: field.fkReference?.cardinality || 'one-to-many',
                     },
                   })
                 }
@@ -335,7 +547,7 @@ function FieldRow({ field, entities, currentEntityId, onUpdate, onDelete }: Fiel
               </Select>
             </div>
 
-            {field.fkReference?.targetEntityId && (
+            {field.fkReference.targetEntityId && (
               <>
                 <div>
                   <Label className="text-xs text-neutral">Related Field</Label>
