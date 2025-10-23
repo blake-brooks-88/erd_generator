@@ -1,0 +1,188 @@
+This is an excellent set of clarifications. I am now 100% confident I understand the full scope of your project.
+
+Here is the final, refined prompt, incorporating all of our decisions. You can use this prompt directly in Replit.
+
+-----
+
+### **Replit Prompt: Build a React ERD & Data Dictionary Generator**
+
+**Core Concept:**
+Build a React application that serves as a multi-project Entity-Relationship Diagram (ERD) and Data Dictionary generator. The primary output must be **Mermaid ERD syntax**. The application must automatically save all work to `localStorage` and support managing multiple "projects."
+
+**High-Level Architecture & State:**
+
+1.  **Layout:** A **three-column layout** with resizable panels (use `react-split-pane`).
+
+2.  **State Management:** All schema data must be stored in a central React state (e.g., `useReducer` or `useState` + `useContext`). Any change in the state must instantly and automatically update all other parts of the UI (visualizer, code, etc.). The app should load with a blank slate (no default tables).
+
+3.  **Styling:** Use **Tailwind CSS**.
+
+      * You **must not** use any default Tailwind colors (e.g., `bg-blue-500`, `text-gray-900`).
+      * All colors must be sourced from the following custom semantic palette, which must be defined in `tailwind.config.js` under `theme.extend.colors`.
+
+    <!-- end list -->
+
+    ```javascript
+    // tailwind.config.js
+    theme: {
+      extend: {
+        colors: {
+          'primary': '#FF6F61',    // Main actions, buttons, active tabs
+          'secondary': '#004D40',  // Headers, secondary info
+          'accent': '#66DDAA',     // Highlights, success
+          'base': '#FFFBF5',       // App background
+          'text': '#333D3A',       // Main body text
+          'neutral': '#AAB0AF',   // Borders, dividers, disabled state
+          'info': '#0288D1',       // Informational messages
+          'success': '#2E7D32',    // Success messages
+          'warning': '#FFC107',    // Warnings
+          'error': '#D32F2F',      // Errors
+        },
+      },
+    },
+    ```
+
+      * **Implementation Example:**
+          * Page background: `bg-base`
+          * Body text: `text-text`
+          * Primary button: `bg-primary hover:bg-primary/80`
+          * Panel backgrounds: `bg-white` (or `bg-base-100` if you create a variant) with `border-neutral`
+          * Active tab: `border-b-primary text-primary`
+          * Headers: `bg-secondary text-base`
+
+-----
+
+### **Detailed Feature Requirements:**
+
+**1. Project Management & Storage Interface:**
+
+  * **UI:** Implement a main header/navbar. Inside, include a **"Projects" dropdown**.
+  * **Functionality:** This dropdown must list all saved projects and have buttons for:
+    1.  **"Create New Project"** (prompts for a name)
+    2.  **"Rename Current Project"**
+    3.  **"Delete Current Project"** (must show a confirmation modal)
+  * **Loading:** On initial app load, automatically load the *most recently modified* project. If none exist, create a new "Untitled Project."
+  * **Storage Abstraction (Interface):**
+      * Define a `StorageService` interface (as a plain object specification) with methods like `getProjectList()`, `loadProject(id)`, `saveProject(projectData)`, `deleteProject(id)`, and `getMostRecentProjectId()`.
+      * The React application must *only* interact with this abstract interface.
+      * Provide a default implementation, `LocalStorageAdapter`, that fulfills this interface and uses `localStorage` for all persistence.
+
+**2. Left Panel ("Builder"): The Schema Editor**
+
+This is the primary form-based UI for all schema editing.
+
+  * **Entities:**
+      * Full CRUD (Create, Read, Update, Delete) for entities.
+      * Each entity just needs a name (e.g., "Users").
+      * **Validation:** Prevent duplicate entity names (show an `error` toast/message).
+  * **Fields:**
+      * For the currently selected entity, provide full CRUD for its fields.
+      * Each field must have inputs for:
+        1.  **Field Name** (text input)
+        2.  **Data Type** (dropdown: `string`, `int`, `boolean`, `datetime`, `decimal`, etc.)
+        3.  **PK** (checkbox for Primary Key)
+        4.  **FK** (checkbox for Foreign Key)
+        5.  **Notes** (optional text area)
+      * **Validation:** Prevent duplicate field names *within the same entity*.
+
+**3. Center Panel ("Visualizer"): Tabs**
+
+This panel must have two tabs.
+
+  * **Tab 1: "Live ERD":**
+      * Use the `mermaid.js` library.
+      * This tab must read the generated Mermaid code from the Right Panel and render the visual diagram.
+      * It must update in real-time whenever the schema changes.
+  * **Tab 2: "Data Dictionary":**
+      * Display a **read-only** HTML table.
+      * This table must clearly visualize all entities, fields, types, keys (PK/FK), and notes.
+      * This table is **NOT** editable. It is a pure reflection of the current React state.
+
+**4. Right Panel ("Code"): Mermaid Output**
+
+  * A simple `<textarea>` that displays the raw Mermaid ERD syntax generated from the React state.
+  * This text must update in real-time.
+  * Include a **"Copy to Clipboard" button** that uses the `bg-accent` color.
+
+**5. Relationship Management (Critical Logic):**
+
+Implement two distinct flows for creating relationships:
+
+  * **A. 1-to-1 and 1-to-Many Relationships (Field-Based):**
+
+    1.  A user checks the **`FK`** box for a field (e.g., `Posts.user_id`).
+    2.  Three new dropdowns must appear for that field:
+          * **`Related Entity`**: Lists all *other* entities (e.g., `Users`).
+          * **`Related Field`**: Lists all fields from the selected related entity (e.g., `id`).
+          * **`Cardinality`**: A dropdown with only two options: "One-to-One" and "One-to-Many."
+    3.  This information is saved to the state and used to generate the correct Mermaid syntax (e.g., `Posts }|--|| Users`).
+
+  * **B. Many-to-Many Relationships (Table-Based):**
+
+    1.  In the Left Panel, at the *entity* level (e.g., next to the "Delete Entity" button), add a new button: **"Add M-M Relationship"**.
+    2.  Clicking this opens a modal that prompts for:
+          * **`Other Entity`**: A dropdown of all other entities (e.g., `Roles`).
+          * **`New Join Table Name`**: A text input, pre-filled with a suggestion (e.g., `Users_Roles`).
+    3.  On confirmation, the app must **automatically create the new join table** (e.g., `Users_Roles`) in the central state.
+    4.  This new table must be pre-populated with its two fields (e.g., `user_id` and `role_id`), which are both set as PK and FK, correctly referencing the two parent tables.
+    5.  This will automatically update the Mermaid diagram to show the new join table and its two "One-to-Many" relationships.
+
+**6. Import / Export Functionality:**
+
+  * **"Import from CSV" Button:**
+      * Allow the user to upload a CSV file (use `papaparse` or similar).
+      * On import, it should **clear the current project's state** and populate it with the data from the CSV.
+      * The app must parse this CSV, assuming the columns: `Entity`, `Field`, `Type`, `Key` (value is "PK" or "FK"), `Notes`, `ForeignKeyEntity`, `ForeignKeyField`.
+  * **"Export to CSV" Button:**
+      * Take the *current project's* React state and generate a CSV file (using the same columns as import) for the user to download.
+
+**7. Recommended State Structure (Reference):**
+
+Use a structure similar to this to manage the state for *a single project*:
+
+```json
+[
+  {
+    "id": "entity-1-uuid",
+    "name": "Users",
+    "fields": [
+      {
+        "id": "field-1-uuid",
+        "name": "id",
+        "type": "int",
+        "isPK": true,
+        "isFK": false,
+        "notes": "Primary key"
+      },
+      // ... other fields
+    ]
+  },
+  {
+    "id": "entity-2-uuid",
+    "name": "Posts",
+    "fields": [
+      {
+        "id": "field-3-uuid",
+        "name": "id",
+        "type": "int",
+        "isPK": true,
+        "isFK": false,
+        "notes": ""
+      },
+      {
+        "id": "field-4-uuid",
+        "name": "user_id",
+        "type": "int",
+        "isPK": false,
+        "isFK": true,
+        "notes": "Links to the user",
+        "fkReference": {
+          "targetEntityId": "entity-1-uuid",
+          "targetFieldId": "field-1-uuid",
+          "cardinality": "one-to-many" 
+        }
+      }
+    ]
+  }
+]
+```
