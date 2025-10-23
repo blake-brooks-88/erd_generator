@@ -27,7 +27,7 @@ interface EntityBuilderProps {
   onAddField: (entityId: string, field: Omit<Field, 'id'>) => void;
   onUpdateField: (entityId: string, fieldId: string, updates: Partial<Field>) => void;
   onDeleteField: (entityId: string, fieldId: string) => void;
-  onAddManyToMany: (entityId: string, targetEntityId: string, joinTableName: string) => void;
+  onOpenManyToManyDialog: (entityId: string) => void;
 }
 
 export default function EntityBuilder({
@@ -39,7 +39,7 @@ export default function EntityBuilder({
   onAddField,
   onUpdateField,
   onDeleteField,
-  onAddManyToMany,
+  onOpenManyToManyDialog,
 }: EntityBuilderProps) {
   const [newEntityName, setNewEntityName] = useState('');
   const [newFieldData, setNewFieldData] = useState({
@@ -148,13 +148,7 @@ export default function EntityBuilder({
               variant="ghost"
               size="sm"
               className="bg-accent hover:bg-accent/80 text-white"
-              onClick={() => {
-                const targetEntityId = prompt('Select target entity ID (for demo):');
-                if (targetEntityId) {
-                  const joinTableName = `${selectedEntity.name}_${entities.find(e => e.id === targetEntityId)?.name || 'Entity'}`;
-                  onAddManyToMany(selectedEntity.id, targetEntityId, joinTableName);
-                }
-              }}
+              onClick={() => onOpenManyToManyDialog(selectedEntity.id)}
               data-testid="button-add-mm-relationship"
             >
               <Users className="h-4 w-4 mr-2" />

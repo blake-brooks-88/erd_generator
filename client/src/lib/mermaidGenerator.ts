@@ -23,7 +23,14 @@ export function generateMermaidCode(entities: Entity[]): string {
       if (field.isFK && field.fkReference) {
         const targetEntity = entities.find(e => e.id === field.fkReference!.targetEntityId);
         if (targetEntity) {
-          const cardinality = field.fkReference.cardinality === 'one-to-one' ? '||--||' : '}o--||';
+          let cardinality: string;
+          
+          if (field.fkReference.cardinality === 'one-to-one') {
+            cardinality = '||--||';
+          } else {
+            cardinality = '}o--||';
+          }
+          
           const relKey = `${entity.name}${cardinality}${targetEntity.name}`;
           const reverseKey = `${targetEntity.name}${cardinality}${entity.name}`;
           

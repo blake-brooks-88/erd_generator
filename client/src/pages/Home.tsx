@@ -23,6 +23,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import Papa from 'papaparse';
 
 export default function Home() {
@@ -30,6 +48,14 @@ export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [manyToManyDialogOpen, setManyToManyDialogOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [renameProjectName, setRenameProjectName] = useState('');
+  const [manyToManySourceId, setManyToManySourceId] = useState<string | null>(null);
+  const [manyToManyTargetId, setManyToManyTargetId] = useState('');
+  const [manyToManyJoinTable, setManyToManyJoinTable] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -65,11 +91,15 @@ export default function Home() {
   };
 
   const handleCreateProject = () => {
-    const name = prompt('Enter project name:');
-    if (name?.trim()) {
+    setNewProjectName('');
+    setCreateDialogOpen(true);
+  };
+
+  const confirmCreateProject = () => {
+    if (newProjectName.trim()) {
       const newProject: Project = {
         id: uuidv4(),
-        name: name.trim(),
+        name: newProjectName.trim(),
         entities: [],
         lastModified: Date.now(),
       };
@@ -77,16 +107,25 @@ export default function Home() {
       setCurrentProject(newProject);
       loadProjects();
       toast({ title: 'Project created successfully' });
+      setCreateDialogOpen(false);
+      setNewProjectName('');
     }
   };
 
   const handleRenameProject = () => {
     if (!currentProject) return;
-    const newName = prompt('Enter new project name:', currentProject.name);
-    if (newName?.trim()) {
-      const updated = { ...currentProject, name: newName.trim() };
+    setRenameProjectName(currentProject.name);
+    setRenameDialogOpen(true);
+  };
+
+  const confirmRenameProject = () => {
+    if (!currentProject) return;
+    if (renameProjectName.trim()) {
+      const updated = { ...currentProject, name: renameProjectName.trim() };
       saveCurrentProject(updated);
       toast({ title: 'Project renamed successfully' });
+      setRenameDialogOpen(false);
+      setRenameProjectName('');
     }
   };
 
@@ -204,15 +243,24 @@ export default function Home() {
     toast({ title: 'Field deleted successfully' });
   };
 
-  const handleAddManyToMany = (
-    entityId: string,
-    targetEntityId: string,
-    joinTableName: string
-  ) => {
+  const handleOpenManyToManyDialog = (entityId: string) => {
     if (!currentProject) return;
-
     const sourceEntity = currentProject.entities.find(e => e.id === entityId);
-    const targetEntity = currentProject.entities.find(e => e.id === targetEntityId);
+    if (!sourceEntity) return;
+
+    setManyToManySourceId(entityId);
+    setManyToManyTargetId('');
+    setManyToManyJoinTable('');
+    setManyToManyDialogOpen(true);
+  };
+
+  const confirmManyToMany = () => {
+    if (!currentProject || !manyToManySourceId || !manyToManyTargetId || !manyToManyJoinTable.trim()) {
+      return;
+    }
+
+    const sourceEntity = currentProject.entities.find(e => e.id === manyToManySourceId);
+    const targetEntity = currentProject.entities.find(e => e.id === manyToManyTargetId);
 
     if (!sourceEntity || !targetEntity) return;
 
@@ -230,7 +278,7 @@ export default function Home() {
 
     const joinTable: Entity = {
       id: uuidv4(),
-      name: joinTableName,
+      name: manyToManyJoinTable.trim(),
       fields: [
         {
           id: uuidv4(),
@@ -240,9 +288,9 @@ export default function Home() {
           isFK: true,
           notes: `References ${sourceEntity.name}.${sourcePK.name}`,
           fkReference: {
-            targetEntityId: entityId,
+            targetEntityId: manyToManySourceId,
             targetFieldId: sourcePK.id,
-            cardinality: 'one-to-many',
+            cardinality: 'many-to-one',
           },
         },
         {
@@ -253,9 +301,9 @@ export default function Home() {
           isFK: true,
           notes: `References ${targetEntity.name}.${targetPK.name}`,
           fkReference: {
-            targetEntityId: targetEntityId,
+            targetEntityId: manyToManyTargetId,
             targetFieldId: targetPK.id,
-            cardinality: 'one-to-many',
+            cardinality: 'many-to-one',
           },
         },
       ],
@@ -266,6 +314,10 @@ export default function Home() {
       entities: [...currentProject.entities, joinTable],
     });
     toast({ title: 'Many-to-Many relationship created successfully' });
+    setManyToManyDialogOpen(false);
+    setManyToManySourceId(null);
+    setManyToManyTargetId('');
+    setManyToManyJoinTable('');
   };
 
   const handleImportCSV = () => {
@@ -404,7 +456,7 @@ export default function Home() {
               onAddField={handleAddField}
               onUpdateField={handleUpdateField}
               onDeleteField={handleDeleteField}
-              onAddManyToMany={handleAddManyToMany}
+              onOpenManyToManyDialog={handleOpenManyToManyDialog}
             />
           </Panel>
 
@@ -442,6 +494,165 @@ export default function Home() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-text">Create New Project</DialogTitle>
+            <DialogDescription className="text-neutral">
+              Enter a name for your new project.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="project-name" className="text-text">
+              Project Name
+            </Label>
+            <Input
+              id="project-name"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && confirmCreateProject()}
+              placeholder="e.g., E-commerce System"
+              className="mt-2 border-neutral focus:border-primary"
+              data-testid="input-create-project-name"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setCreateDialogOpen(false)}
+              className="text-neutral"
+              data-testid="button-cancel-create"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmCreateProject}
+              className="bg-primary hover:bg-primary/80 text-white"
+              data-testid="button-confirm-create"
+            >
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-text">Rename Project</DialogTitle>
+            <DialogDescription className="text-neutral">
+              Enter a new name for "{currentProject?.name}".
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="rename-project-name" className="text-text">
+              Project Name
+            </Label>
+            <Input
+              id="rename-project-name"
+              value={renameProjectName}
+              onChange={(e) => setRenameProjectName(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && confirmRenameProject()}
+              placeholder="Enter new name"
+              className="mt-2 border-neutral focus:border-primary"
+              data-testid="input-rename-project-name"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setRenameDialogOpen(false)}
+              className="text-neutral"
+              data-testid="button-cancel-rename"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmRenameProject}
+              className="bg-primary hover:bg-primary/80 text-white"
+              data-testid="button-confirm-rename"
+            >
+              Rename
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manyToManyDialogOpen} onOpenChange={setManyToManyDialogOpen}>
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-text">Add Many-to-Many Relationship</DialogTitle>
+            <DialogDescription className="text-neutral">
+              Create a join table to establish a many-to-many relationship between entities.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="target-entity" className="text-text">
+                Target Entity
+              </Label>
+              <Select
+                value={manyToManyTargetId}
+                onValueChange={(value) => {
+                  setManyToManyTargetId(value);
+                  if (manyToManySourceId && value && currentProject) {
+                    const source = currentProject.entities.find(e => e.id === manyToManySourceId);
+                    const target = currentProject.entities.find(e => e.id === value);
+                    if (source && target) {
+                      setManyToManyJoinTable(`${source.name}_${target.name}`);
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger className="mt-2 border-neutral" data-testid="select-mm-target">
+                  <SelectValue placeholder="Select target entity" />
+                </SelectTrigger>
+                <SelectContent>
+                  {currentProject?.entities
+                    .filter(e => e.id !== manyToManySourceId)
+                    .map(entity => (
+                      <SelectItem key={entity.id} value={entity.id}>
+                        {entity.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="join-table-name" className="text-text">
+                Join Table Name
+              </Label>
+              <Input
+                id="join-table-name"
+                value={manyToManyJoinTable}
+                onChange={(e) => setManyToManyJoinTable(e.target.value)}
+                placeholder="e.g., Users_Roles"
+                className="mt-2 border-neutral focus:border-primary"
+                data-testid="input-mm-join-table"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setManyToManyDialogOpen(false)}
+              className="text-neutral"
+              data-testid="button-cancel-mm"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmManyToMany}
+              disabled={!manyToManyTargetId || !manyToManyJoinTable.trim()}
+              className="bg-accent hover:bg-accent/80 text-white"
+              data-testid="button-confirm-mm"
+            >
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
