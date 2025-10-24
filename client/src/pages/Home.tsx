@@ -1,18 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { v4 as uuidv4 } from 'uuid';
 import Navbar from '@/components/Navbar';
 import EntityBuilder from '@/components/EntityBuilder';
 import Visualizer from '@/components/Visualizer';
 import CodePanel from '@/components/CodePanel';
-import {
-  Entity,
-  Field,
-  Project,
-  storageService,
-} from '@/lib/storageService';
+import { Entity, Field, Project } from '@/lib/storageService';
 import { generateMermaidCode } from '@/lib/mermaidGenerator';
 import { useToast } from '@/hooks/use-toast';
+import { useProjectContext } from '@/store/projectStore';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,8 +40,22 @@ import {
 import Papa from 'papaparse';
 
 export default function Home() {
-  const [currentProject, setCurrentProject] = useState<Project | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const {
+    projects,
+    currentProject,
+    isLoading,
+    selectProject,
+    createProject,
+    renameProject,
+    deleteProject,
+    addEntity,
+    deleteEntity,
+    addField,
+    updateField,
+    deleteField,
+    setEntities,
+  } = useProjectContext();
+
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -59,36 +69,9 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
-  const loadProjects = () => {
-    const allProjects = storageService.getProjectList();
-    setProjects(allProjects);
-
-    if (allProjects.length === 0) {
-      const newProject: Project = {
-        id: uuidv4(),
-        name: 'Untitled Project',
-        entities: [],
-        lastModified: Date.now(),
-      };
-      storageService.saveProject(newProject);
-      setCurrentProject(newProject);
-      setProjects([newProject]);
-    } else {
-      const recentId = storageService.getMostRecentProjectId();
-      const project = recentId ? storageService.loadProject(recentId) : allProjects[0];
-      setCurrentProject(project);
-    }
-  };
-
-  const saveCurrentProject = (updatedProject: Project) => {
-    storageService.saveProject(updatedProject);
-    setCurrentProject(updatedProject);
-    setProjects(storageService.getProjectList());
-  };
+   useEffect(() => {
+        setSelectedEntityId(null);
+   }, [currentProject?.id]);
 
   const handleCreateProject = () => {
     setNewProjectName('');
@@ -97,18 +80,15 @@ export default function Home() {
 
   const confirmCreateProject = () => {
     if (newProjectName.trim()) {
-      const newProject: Project = {
-        id: uuidv4(),
-        name: newProjectName.trim(),
-        entities: [],
-        lastModified: Date.now(),
-      };
-      storageService.saveProject(newProject);
-      setCurrentProject(newProject);
-      loadProjects();
-      toast({ title: 'Project created successfully' });
-      setCreateDialogOpen(false);
-      setNewProjectName('');
+      try {
+        createProject(newProjectName.trim());
+        toast({ title: 'Project created successfully' });
+        setCreateDialogOpen(false);
+        setNewProjectName('');
+      } catch (error) {
+           console.error("Failed to create project:", error);
+           toast({ title: 'Failed to create project', variant: 'destructive'});
+      }
     }
   };
 
@@ -120,130 +100,72 @@ export default function Home() {
 
   const confirmRenameProject = () => {
     if (!currentProject) return;
-    if (renameProjectName.trim()) {
-      const updated = { ...currentProject, name: renameProjectName.trim() };
-      saveCurrentProject(updated);
+    if (renameProjectName.trim() && renameProjectName.trim() !== currentProject.name) {
+      renameProject(currentProject.id, renameProjectName.trim());
       toast({ title: 'Project renamed successfully' });
       setRenameDialogOpen(false);
       setRenameProjectName('');
+    } else if (renameProjectName.trim() === currentProject.name) {
+       setRenameDialogOpen(false);
+       setRenameProjectName('');
     }
   };
 
   const handleDeleteProject = () => {
+    if (!currentProject) return;
     setDeleteDialogOpen(true);
   };
 
   const confirmDelete = () => {
     if (!currentProject) return;
-    storageService.deleteProject(currentProject.id);
+    deleteProject(currentProject.id);
     setDeleteDialogOpen(false);
-    loadProjects();
     toast({ title: 'Project deleted successfully', variant: 'destructive' });
   };
 
-  const handleSelectProject = (id: string) => {
-    const project = storageService.loadProject(id);
-    if (project) {
-      setCurrentProject(project);
-      setSelectedEntityId(null);
-    }
-  };
-
-  const handleAddEntity = (name: string) => {
-    if (!currentProject) return;
-    
-    if (currentProject.entities.some(e => e.name.toLowerCase() === name.toLowerCase())) {
-      toast({
-        title: 'Duplicate entity name',
-        description: 'An entity with this name already exists.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const newEntity: Entity = {
-      id: uuidv4(),
-      name,
-      fields: [],
+   const handleAddEntityWithToast = (name: string) => {
+        if (!currentProject) return;
+        if (currentProject.entities.some(e => e.name.toLowerCase() === name.toLowerCase())) {
+             toast({
+                title: 'Duplicate entity name',
+                description: 'An entity with this name already exists.',
+                variant: 'destructive',
+             });
+        } else {
+             addEntity(name);
+             toast({ title: 'Entity added successfully' });
+        }
     };
 
-    saveCurrentProject({
-      ...currentProject,
-      entities: [...currentProject.entities, newEntity],
-    });
-    toast({ title: 'Entity added successfully' });
-  };
-
-  const handleDeleteEntity = (id: string) => {
-    if (!currentProject) return;
-    saveCurrentProject({
-      ...currentProject,
-      entities: currentProject.entities.filter(e => e.id !== id),
-    });
-    if (selectedEntityId === id) {
-      setSelectedEntityId(null);
-    }
-    toast({ title: 'Entity deleted successfully' });
-  };
-
-  const handleAddField = (entityId: string, fieldData: Omit<Field, 'id'>) => {
-    if (!currentProject) return;
-
-    const entity = currentProject.entities.find(e => e.id === entityId);
-    if (!entity) return;
-
-    if (entity.fields.some(f => f.name.toLowerCase() === fieldData.name.toLowerCase())) {
-      toast({
-        title: 'Duplicate field name',
-        description: 'A field with this name already exists in this entity.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const newField: Field = {
-      ...fieldData,
-      id: uuidv4(),
+    const handleDeleteEntityWithToast = (id: string) => {
+        deleteEntity(id);
+        if (selectedEntityId === id) {
+             setSelectedEntityId(null);
+        }
+        toast({ title: 'Entity deleted successfully' });
     };
 
-    saveCurrentProject({
-      ...currentProject,
-      entities: currentProject.entities.map(e =>
-        e.id === entityId ? { ...e, fields: [...e.fields, newField] } : e
-      ),
-    });
-    toast({ title: 'Field added successfully' });
-  };
+     const handleAddFieldWithToast = (entityId: string, fieldData: Omit<Field, 'id'>) => {
+        if (!currentProject) return;
+        const entity = currentProject.entities.find(e => e.id === entityId);
+        if (entity && entity.fields.some(f => f.name.toLowerCase() === fieldData.name.toLowerCase())) {
+            toast({
+                title: 'Duplicate field name',
+                description: 'A field with this name already exists in this entity.',
+                variant: 'destructive',
+            });
+        } else {
+            addField(entityId, fieldData);
+            toast({ title: 'Field added successfully' });
+        }
+     };
 
-  const handleUpdateField = (entityId: string, fieldId: string, updates: Partial<Field>) => {
-    if (!currentProject) return;
+     const handleDeleteFieldWithToast = (entityId: string, fieldId: string) => {
+        deleteField(entityId, fieldId);
+        toast({ title: 'Field deleted successfully' });
+     };
 
-    saveCurrentProject({
-      ...currentProject,
-      entities: currentProject.entities.map(e =>
-        e.id === entityId
-          ? {
-              ...e,
-              fields: e.fields.map(f => (f.id === fieldId ? { ...f, ...updates } : f)),
-            }
-          : e
-      ),
-    });
-  };
-
-  const handleDeleteField = (entityId: string, fieldId: string) => {
-    if (!currentProject) return;
-
-    saveCurrentProject({
-      ...currentProject,
-      entities: currentProject.entities.map(e =>
-        e.id === entityId ? { ...e, fields: e.fields.filter(f => f.id !== fieldId) } : e
-      ),
-    });
-    toast({ title: 'Field deleted successfully' });
-  };
-
-  const handleOpenManyToManyDialog = (entityId: string) => {
+   const handleOpenManyToManyDialog = (entityId: string) => {
     if (!currentProject) return;
     const sourceEntity = currentProject.entities.find(e => e.id === entityId);
     if (!sourceEntity) return;
@@ -254,70 +176,85 @@ export default function Home() {
     setManyToManyDialogOpen(true);
   };
 
-  const confirmManyToMany = () => {
-    if (!currentProject || !manyToManySourceId || !manyToManyTargetId || !manyToManyJoinTable.trim()) {
-      return;
-    }
+    const confirmManyToMany = () => {
+        if (!currentProject || !manyToManySourceId || !manyToManyTargetId || !manyToManyJoinTable.trim()) {
+        toast({ title: 'Missing information', description: 'Please select a target entity and provide a join table name.', variant: 'destructive'});
+        return;
+        }
 
-    const sourceEntity = currentProject.entities.find(e => e.id === manyToManySourceId);
-    const targetEntity = currentProject.entities.find(e => e.id === manyToManyTargetId);
+        const sourceEntity = currentProject.entities.find(e => e.id === manyToManySourceId);
+        const targetEntity = currentProject.entities.find(e => e.id === manyToManyTargetId);
 
-    if (!sourceEntity || !targetEntity) return;
+        if (!sourceEntity || !targetEntity) {
+            toast({ title: 'Entities not found', variant: 'destructive'});
+            return;
+        };
 
-    const sourcePK = sourceEntity.fields.find(f => f.isPK);
-    const targetPK = targetEntity.fields.find(f => f.isPK);
+        const sourcePK = sourceEntity.fields.find(f => f.isPK);
+        const targetPK = targetEntity.fields.find(f => f.isPK);
 
-    if (!sourcePK || !targetPK) {
-      toast({
-        title: 'Missing primary keys',
-        description: 'Both entities must have primary keys defined.',
-        variant: 'destructive',
-      });
-      return;
-    }
+        if (!sourcePK || !targetPK) {
+        toast({
+            title: 'Missing primary keys',
+            description: 'Both source and target entities must have primary keys defined to create a join table.',
+            variant: 'destructive',
+        });
+        return;
+        }
 
-    const joinTable: Entity = {
-      id: uuidv4(),
-      name: manyToManyJoinTable.trim(),
-      fields: [
-        {
-          id: uuidv4(),
-          name: `${sourceEntity.name.toLowerCase()}_id`,
-          type: sourcePK.type,
-          isPK: true,
-          isFK: true,
-          notes: `References ${sourceEntity.name}.${sourcePK.name}`,
-          fkReference: {
-            targetEntityId: manyToManySourceId,
-            targetFieldId: sourcePK.id,
-            cardinality: 'many-to-one',
-          },
-        },
-        {
-          id: uuidv4(),
-          name: `${targetEntity.name.toLowerCase()}_id`,
-          type: targetPK.type,
-          isPK: true,
-          isFK: true,
-          notes: `References ${targetEntity.name}.${targetPK.name}`,
-          fkReference: {
-            targetEntityId: manyToManyTargetId,
-            targetFieldId: targetPK.id,
-            cardinality: 'many-to-one',
-          },
-        },
-      ],
+        const joinTableName = manyToManyJoinTable.trim();
+        if (currentProject.entities.some(e => e.name.toLowerCase() === joinTableName.toLowerCase())) {
+            toast({
+                title: 'Duplicate entity name',
+                description: `An entity named "${joinTableName}" already exists. Choose a different name for the join table.`,
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        const joinTableEntity: Entity = {
+        id: uuidv4(),
+        name: joinTableName,
+        fields: [
+            {
+            id: uuidv4(),
+            name: `${sourceEntity.name.toLowerCase()}_${sourcePK.name}`,
+            type: sourcePK.type,
+            isPK: true,
+            isFK: true,
+            notes: `Links to ${sourceEntity.name}`,
+            fkReference: {
+                targetEntityId: manyToManySourceId,
+                targetFieldId: sourcePK.id,
+                cardinality: 'many-to-one',
+            },
+            },
+            {
+            id: uuidv4(),
+            name: `${targetEntity.name.toLowerCase()}_${targetPK.name}`,
+            type: targetPK.type,
+            isPK: true,
+            isFK: true,
+            notes: `Links to ${targetEntity.name}`,
+            fkReference: {
+                targetEntityId: manyToManyTargetId,
+                targetFieldId: targetPK.id,
+                cardinality: 'many-to-one',
+            },
+            },
+        ],
+        };
+
+        // Temporary workaround: Use setEntities to add the new entity including its fields
+        saveCurrentProjectWithNewEntities([...currentProject.entities, joinTableEntity]);
+
+        toast({ title: 'Many-to-Many join table created' });
+        setManyToManyDialogOpen(false);
     };
 
-    saveCurrentProject({
-      ...currentProject,
-      entities: [...currentProject.entities, joinTable],
-    });
-    toast({ title: 'Many-to-Many relationship created successfully' });
-    setManyToManyDialogOpen(false);
-    setManyToManySourceId(null);
-    setManyToManyTargetId('');
-    setManyToManyJoinTable('');
+
+  const saveCurrentProjectWithNewEntities = (newEntities: Entity[]) => {
+      setEntities(newEntities);
   };
 
   const handleImportCSV = () => {
@@ -326,102 +263,181 @@ export default function Home() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !currentProject) return;
 
-    Papa.parse(file, {
+    Papa.parse<Record<string, string>>(file, {
       header: true,
+      skipEmptyLines: true,
       complete: (results) => {
         try {
-          const newEntities: Map<string, Entity> = new Map();
+          const newEntitiesMap: Map<string, Entity> = new Map();
+          const errors: string[] = [];
 
-          results.data.forEach((row: any) => {
-            if (!row.Entity || !row.Field) return;
+          results.data.forEach((row, index) => {
+            const entityName = row.Entity?.trim();
+            const fieldName = row.Field?.trim();
 
-            let entity = newEntities.get(row.Entity);
+            if (!entityName || !fieldName) {
+              if(Object.keys(row).length > 1 || (entityName && !fieldName) || (!entityName && fieldName)) {
+                errors.push(`Row ${index + 2}: Missing required 'Entity' or 'Field' name.`);
+              }
+              return;
+            }
+
+            let entity = newEntitiesMap.get(entityName);
             if (!entity) {
-              entity = {
-                id: uuidv4(),
-                name: row.Entity,
-                fields: [],
-              };
-              newEntities.set(row.Entity, entity);
+               const existingEntity = currentProject.entities.find(e => e.name.toLowerCase() === entityName.toLowerCase());
+               entity = existingEntity ? { ...existingEntity, fields: [] } : { id: uuidv4(), name: entityName, fields: [] };
+               newEntitiesMap.set(entityName, entity);
+            }
+
+            if (entity.fields.some(f => f.name.toLowerCase() === fieldName.toLowerCase())) {
+                errors.push(`Row ${index + 2}: Duplicate field name "${fieldName}" found for entity "${entityName}". Skipping duplicate.`);
+                return;
             }
 
             const field: Field = {
               id: uuidv4(),
-              name: row.Field,
-              type: row.Type || 'string',
-              isPK: row.Key === 'PK',
-              isFK: row.Key === 'FK',
-              notes: row.Notes || '',
+              name: fieldName,
+              type: row.Type?.trim() || 'string',
+              isPK: row.Key?.trim().toUpperCase() === 'PK',
+              isFK: row.Key?.trim().toUpperCase() === 'FK',
+              notes: row.Notes?.trim() || '',
+              fkReference: undefined,
             };
+
+             if (field.isFK) {
+                const targetEntityName = row.ForeignKeyEntity?.trim();
+                const targetFieldName = row.ForeignKeyField?.trim();
+                (field as any)._tempFkTargetEntityName = targetEntityName;
+                (field as any)._tempFkTargetFieldName = targetFieldName;
+             }
 
             entity.fields.push(field);
           });
 
-          if (currentProject) {
-            saveCurrentProject({
-              ...currentProject,
-              entities: Array.from(newEntities.values()),
+           const finalEntities = Array.from(newEntitiesMap.values());
+           finalEntities.forEach(entity => {
+                entity.fields.forEach(field => {
+                    if ((field as any)._tempFkTargetEntityName && (field as any)._tempFkTargetFieldName) {
+                        const targetEntity = finalEntities.find(e => e.name === (field as any)._tempFkTargetEntityName);
+                        const targetField = targetEntity?.fields.find(f => f.name === (field as any)._tempFkTargetFieldName);
+
+                        if (targetEntity && targetField) {
+                            field.fkReference = {
+                                targetEntityId: targetEntity.id,
+                                targetFieldId: targetField.id,
+                                cardinality: 'many-to-one'
+                            };
+                        } else {
+                            errors.push(`Could not resolve FK reference for ${entity.name}.${field.name}: Target "${(field as any)._tempFkTargetEntityName}.${(field as any)._tempFkTargetFieldName}" not found.`);
+                            field.isFK = false;
+                        }
+                    }
+                    delete (field as any)._tempFkTargetEntityName;
+                    delete (field as any)._tempFkTargetFieldName;
+                });
+           });
+
+          if (errors.length > 0) {
+            toast({
+              title: 'CSV Import completed with warnings',
+              description: errors.slice(0, 3).join(' ') + (errors.length > 3 ? '...' : ''),
+              variant: 'default',
+              duration: 10000
             });
-            toast({ title: 'CSV imported successfully' });
+          } else {
+             toast({ title: 'CSV imported successfully' });
           }
-        } catch (error) {
+
+          setEntities(finalEntities);
+
+        } catch (error: any) {
+          console.error("CSV Parsing Error:", error);
           toast({
             title: 'Import failed',
-            description: 'Failed to parse CSV file.',
+            description: `Failed to process CSV data. ${error.message || ''}`,
             variant: 'destructive',
           });
         }
       },
-      error: () => {
+      error: (error: Error) => {
+         console.error("CSV Reading Error:", error);
         toast({
           title: 'Import failed',
-          description: 'Failed to read CSV file.',
+          description: `Failed to read CSV file. ${error.message || ''}`,
           variant: 'destructive',
         });
       },
     });
 
-    e.target.value = '';
+    if (e.target) e.target.value = '';
   };
 
-  const handleExportCSV = () => {
+   const handleExportCSV = () => {
     if (!currentProject) return;
 
-    const rows: any[] = [];
+    const rows: Array<Record<string, string | undefined>> = [];
     currentProject.entities.forEach(entity => {
-      entity.fields.forEach(field => {
-        rows.push({
-          Entity: entity.name,
-          Field: field.name,
-          Type: field.type,
-          Key: field.isPK ? 'PK' : field.isFK ? 'FK' : '',
-          Notes: field.notes,
-          ForeignKeyEntity: field.fkReference
-            ? currentProject.entities.find(e => e.id === field.fkReference!.targetEntityId)?.name
-            : '',
-          ForeignKeyField: field.fkReference
-            ? currentProject.entities
-                .find(e => e.id === field.fkReference!.targetEntityId)
-                ?.fields.find(f => f.id === field.fkReference!.targetFieldId)?.name
-            : '',
-        });
-      });
+      if (entity.fields.length === 0) {
+           rows.push({ Entity: entity.name, Field: '', Type: '', Key: '', Notes: '' });
+      } else {
+          entity.fields.forEach(field => {
+            let fkEntityName: string | undefined = undefined;
+            let fkFieldName: string | undefined = undefined;
+            if (field.isFK && field.fkReference) {
+              const targetEntity = currentProject.entities.find(e => e.id === field.fkReference!.targetEntityId);
+              if (targetEntity) {
+                fkEntityName = targetEntity.name;
+                const targetField = targetEntity.fields.find(f => f.id === field.fkReference!.targetFieldId);
+                fkFieldName = targetField?.name;
+              }
+            }
+
+            rows.push({
+              Entity: entity.name,
+              Field: field.name,
+              Type: field.type,
+              Key: field.isPK ? 'PK' : field.isFK ? 'FK' : '',
+              Notes: field.notes,
+              ForeignKeyEntity: fkEntityName,
+              ForeignKeyField: fkFieldName,
+            });
+          });
+      }
     });
 
-    const csv = Papa.unparse(rows);
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${currentProject.name.replace(/\s+/g, '_')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: 'CSV exported successfully' });
+    if (rows.length === 0) {
+        toast({ title: "Nothing to export", description: "The current project has no entities or fields."});
+        return;
+    }
+
+    try {
+        const csv = Papa.unparse(rows);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const fileName = `${currentProject.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_erd.csv`;
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        toast({ title: 'CSV exported successfully' });
+    } catch (error: any) {
+        console.error("CSV Export Error:", error);
+        toast({ title: 'Export failed', description: error.message || 'Could not generate CSV.', variant: 'destructive'});
+    }
   };
 
-  const mermaidCode = currentProject ? generateMermaidCode(currentProject.entities) : '';
+  const mermaidCode = useMemo(() => {
+    return currentProject ? generateMermaidCode(currentProject.entities) : 'erDiagram';
+  }, [currentProject]);
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-screen">Loading projects...</div>;
+  }
 
   return (
     <div className="h-screen flex flex-col bg-base">
@@ -431,7 +447,7 @@ export default function Home() {
         onCreateProject={handleCreateProject}
         onRenameProject={handleRenameProject}
         onDeleteProject={handleDeleteProject}
-        onSelectProject={handleSelectProject}
+        onSelectProject={selectProject}
         onImportCSV={handleImportCSV}
         onExportCSV={handleExportCSV}
       />
@@ -450,12 +466,12 @@ export default function Home() {
             <EntityBuilder
               entities={currentProject?.entities || []}
               selectedEntityId={selectedEntityId}
-              onAddEntity={handleAddEntity}
-              onDeleteEntity={handleDeleteEntity}
+              onAddEntity={handleAddEntityWithToast}
+              onDeleteEntity={handleDeleteEntityWithToast}
               onSelectEntity={setSelectedEntityId}
-              onAddField={handleAddField}
-              onUpdateField={handleUpdateField}
-              onDeleteField={handleDeleteField}
+              onAddField={handleAddFieldWithToast}
+              onUpdateField={updateField}
+              onDeleteField={handleDeleteFieldWithToast}
               onOpenManyToManyDialog={handleOpenManyToManyDialog}
             />
           </Panel>
@@ -469,13 +485,16 @@ export default function Home() {
           <PanelResizeHandle className="w-1 bg-neutral hover:bg-primary transition-colors cursor-col-resize" />
 
           <Panel defaultSize={30} minSize={20}>
-            <CodePanel code={mermaidCode} />
+            <CodePanel
+              initialCode={mermaidCode}
+              currentEntities={currentProject?.entities || []}
+            />
           </Panel>
         </PanelGroup>
       </div>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -538,7 +557,7 @@ export default function Home() {
       </Dialog>
 
       <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
-        <DialogContent className="bg-white">
+         <DialogContent className="bg-white">
           <DialogHeader>
             <DialogTitle className="text-text">Rename Project</DialogTitle>
             <DialogDescription className="text-neutral">
@@ -580,32 +599,35 @@ export default function Home() {
       </Dialog>
 
       <Dialog open={manyToManyDialogOpen} onOpenChange={setManyToManyDialogOpen}>
-        <DialogContent className="bg-white">
+          <DialogContent className="bg-white">
           <DialogHeader>
             <DialogTitle className="text-text">Add Many-to-Many Relationship</DialogTitle>
             <DialogDescription className="text-neutral">
-              Create a join table to establish a many-to-many relationship between entities.
+              Create a join table to establish a many-to-many relationship between entities. Both entities must have a Primary Key defined.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+             <div>
+                <Label className="text-text font-medium">Source Entity</Label>
+                <p className='text-sm text-neutral'>{currentProject?.entities.find(e => e.id === manyToManySourceId)?.name || 'N/A'}</p>
+             </div>
+
             <div>
               <Label htmlFor="target-entity" className="text-text">
-                Target Entity
+                Target Entity <span className='text-error'>*</span>
               </Label>
               <Select
                 value={manyToManyTargetId}
                 onValueChange={(value) => {
                   setManyToManyTargetId(value);
-                  if (manyToManySourceId && value && currentProject) {
-                    const source = currentProject.entities.find(e => e.id === manyToManySourceId);
-                    const target = currentProject.entities.find(e => e.id === value);
-                    if (source && target) {
-                      setManyToManyJoinTable(`${source.name}_${target.name}`);
-                    }
-                  }
+                   const source = currentProject?.entities.find(e => e.id === manyToManySourceId);
+                   const target = currentProject?.entities.find(e => e.id === value);
+                   if (source && target) {
+                        setManyToManyJoinTable(`${source.name}_${target.name}`);
+                   }
                 }}
               >
-                <SelectTrigger className="mt-2 border-neutral" data-testid="select-mm-target">
+                <SelectTrigger className="mt-1 border-neutral" data-testid="select-mm-target">
                   <SelectValue placeholder="Select target entity" />
                 </SelectTrigger>
                 <SelectContent>
@@ -621,16 +643,17 @@ export default function Home() {
             </div>
             <div>
               <Label htmlFor="join-table-name" className="text-text">
-                Join Table Name
+                Join Table Name <span className='text-error'>*</span>
               </Label>
               <Input
                 id="join-table-name"
                 value={manyToManyJoinTable}
                 onChange={(e) => setManyToManyJoinTable(e.target.value)}
                 placeholder="e.g., Users_Roles"
-                className="mt-2 border-neutral focus:border-primary"
+                className="mt-1 border-neutral focus:border-primary"
                 data-testid="input-mm-join-table"
               />
+               <p className='text-xs text-neutral mt-1'>This will create a new entity (table).</p>
             </div>
           </div>
           <DialogFooter>
@@ -648,7 +671,7 @@ export default function Home() {
               className="bg-accent hover:bg-accent/80 text-white"
               data-testid="button-confirm-mm"
             >
-              Create
+              Create Join Table
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -656,3 +679,4 @@ export default function Home() {
     </div>
   );
 }
+
