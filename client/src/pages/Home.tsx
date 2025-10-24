@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { v4 as uuidv4 } from 'uuid';
 import Navbar from '@/components/Navbar';
-import EntityBuilder from '@/components/EntityBuilder';
+import { EntityList } from '@/components/EntityList';
+import { EntityEditorModal } from '@/components/EntityEditorModal';
 import Visualizer from '@/components/Visualizer';
 import CodePanel from '@/components/CodePanel';
 import { Entity, Field, Project, FieldType } from '@/lib/storageService'; // Use types
@@ -130,6 +131,8 @@ export default function Home() {
 
   // Local UI state
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  const [entityModalOpen, setEntityModalOpen] = useState(false);
+  const [selectedEntityForModal, setSelectedEntityForModal] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
@@ -152,9 +155,51 @@ export default function Home() {
   useEffect(() => {
     // Reset selected entity when project changes
     setSelectedEntityId(null);
+    setEntityModalOpen(false);
+    setSelectedEntityForModal(null);
   }, [currentProjectId]); // Depend on currentProjectId
 
   // --- Handlers ---
+
+  const handleEntityClick = (entityId: string) => {
+    setSelectedEntityForModal(entityId);
+    setEntityModalOpen(true);
+  };
+  
+  // NEW HANDLER: Opens the modal for a brand new entity
+  const handleOpenNewEntityModal = () => {
+    setSelectedEntityForModal(null); // Signal that no existing entity is selected
+    setEntityModalOpen(true);
+  };
+
+  const handleSaveEntity = (updatedEntity: Entity) => {
+    if (!currentProject) return;
+    
+    // Check if we are saving a brand new entity (no ID match) or updating an existing one
+    const isNewEntity = !currentProject.entities.some(e => e.id === updatedEntity.id);
+
+    if (isNewEntity) {
+        addEntity(updatedEntity); // Use addEntity action
+        toast({ title: 'Entity created successfully' });
+    } else {
+        // Update the entity in the project
+        const updatedEntities = currentProject.entities.map(e =>
+            e.id === updatedEntity.id ? updatedEntity : e
+        );
+        setEntities(updatedEntities);
+        toast({ title: 'Entity updated successfully' });
+    }
+    
+    setEntityModalOpen(false);
+    setSelectedEntityForModal(null);
+    // Auto-select the newly created or updated entity
+    setSelectedEntityId(updatedEntity.id);
+  };
+
+  const handleCloseModal = () => {
+    setEntityModalOpen(false);
+    setSelectedEntityForModal(null);
+  };
 
   const handleCreateProject = () => {
     setNewProjectName('');
@@ -220,18 +265,7 @@ export default function Home() {
     selectProject(id); // Context action handles state and storage update
   };
 
-  const handleAddEntityWithToast = (name: string) => {
-    if (!currentProject) return;
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-        toast({ title: 'Entity name cannot be empty', variant: 'destructive'});
-        return;
-    }
-    // Context hook's addEntity already performs duplicate check and shows toast if needed
-    const newEntity: Entity = { id: uuidv4(), name: trimmedName, fields: [] };
-    addEntity(newEntity); // Pass the full entity object
-    toast({ title: 'Entity added successfully' }); // Show success toast from UI side
-  };
+  // REMOVED: handleAddEntityWithToast - The modal now handles new entity creation/addition
 
   const handleDeleteEntityWithToast = (id: string) => {
     deleteEntity(id); // Use the correct action function
@@ -861,16 +895,14 @@ export default function Home() {
       <div className="flex-1 overflow-hidden">
         <PanelGroup direction="horizontal">
           <Panel defaultSize={25} minSize={20}>
-            <EntityBuilder
-              entities={currentProject.entities} // Can safely access entities
+            <EntityList
+              entities={currentProject.entities}
               selectedEntityId={selectedEntityId}
-              onAddEntity={handleAddEntityWithToast}
+              // REMOVED: onAddEntity={handleAddEntityWithToast}
               onDeleteEntity={handleDeleteEntityWithToast}
-              onSelectEntity={setSelectedEntityId}
-              onAddField={handleAddFieldWithToast}
-              onUpdateField={updateField} // Pass directly from context
-              onDeleteField={handleDeleteFieldWithToast}
-              onOpenManyToManyDialog={handleOpenManyToManyDialog}
+              onEntityClick={handleEntityClick}
+              onOpenNewEntityModal={handleOpenNewEntityModal} // ADDED new prop
+              onSelectEntity={setSelectedEntityId} // Pass down local setter for selection
             />
           </Panel>
 
@@ -891,7 +923,22 @@ export default function Home() {
         </PanelGroup>
       </div>
 
-       {/* Dialogs */}
+      {/* Entity Editor Modal */}
+      <EntityEditorModal
+        // Pass a blank, temporary entity for creation if selectedEntityForModal is null
+        entity={
+            selectedEntityForModal 
+            ? currentProject.entities.find(e => e.id === selectedEntityForModal) || null 
+            : { id: uuidv4(), name: 'New Entity', fields: [] } as Entity
+        }
+        entities={currentProject.entities}
+        isOpen={entityModalOpen}
+        onClose={handleCloseModal}
+        onSave={handleSaveEntity} // onSave will handle adding (if new) or updating (if existing)
+        onOpenManyToManyDialog={handleOpenManyToManyDialog}
+      />
+
+       {/* Dialogs (Unchanged) */}
        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
            <AlertDialogContent>
                <AlertDialogHeader>

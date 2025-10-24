@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
-import { Plus, Trash2, Users, Edit2, Check, X } from 'lucide-react';
+import { Plus, Trash2, Users, Edit2, Check, X, Search } from 'lucide-react';
 
 // Extended data types to support various database column types
 const DATA_TYPES: FieldType[] = [
@@ -40,27 +40,31 @@ const CARDINALITY_OPTIONS = ['one-to-one', 'one-to-many', 'many-to-one'] as cons
 interface EntityBuilderProps {
   entities: Entity[];
   selectedEntityId: string | null;
-  onAddEntity: (name: string) => void;
+  // CHANGED: Removed onAddEntity since modal will handle full entity creation/save
   onDeleteEntity: (id: string) => void;
   onSelectEntity: (id: string) => void;
   onAddField: (entityId: string, field: Omit<Field, 'id'>) => void;
   onUpdateField: (entityId: string, fieldId: string, updates: Partial<Field>) => void;
   onDeleteField: (entityId: string, fieldId: string) => void;
   onOpenManyToManyDialog: (entityId: string) => void;
+  // NEW PROP: Function to open the entity editor modal for a NEW entity
+  onOpenNewEntityModal: () => void;
 }
 
 export default function EntityBuilder({
   entities,
   selectedEntityId,
-  onAddEntity,
   onDeleteEntity,
   onSelectEntity,
   onAddField,
   onUpdateField,
   onDeleteField,
   onOpenManyToManyDialog,
+  onOpenNewEntityModal, // Destructure new prop
 }: EntityBuilderProps) {
-  const [newEntityName, setNewEntityName] = useState('');
+  // REMOVED: newEntityName state
+  // ADDED: State for the search term
+  const [searchTerm, setSearchTerm] = useState('');
   const [newFieldData, setNewFieldData] = useState({
     name: '',
     type: 'string' as FieldType,
@@ -71,12 +75,7 @@ export default function EntityBuilder({
 
   const selectedEntity = entities.find(e => e.id === selectedEntityId);
 
-  const handleAddEntity = () => {
-    if (newEntityName.trim()) {
-      onAddEntity(newEntityName.trim());
-      setNewEntityName('');
-    }
-  };
+  // REMOVED: handleAddEntity (replaced by onOpenNewEntityModal call)
 
   const handleAddField = () => {
     if (selectedEntityId && newFieldData.name.trim()) {
@@ -94,32 +93,41 @@ export default function EntityBuilder({
       });
     }
   };
+  
+  // Filtered list of entities
+  const filteredEntities = entities.filter(entity => 
+    entity.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="h-full overflow-y-auto bg-white p-6 space-y-6">
       <div>
         <h2 className="text-lg font-medium text-text mb-4">Entities</h2>
-        <div className="@container flex flex-col gap-2 mb-4">
-          <Input
-            placeholder="Entity name (e.g., Users)"
-            value={newEntityName}
-            onChange={(e) => setNewEntityName(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleAddEntity()}
-            className="flex-1 border-neutral focus:border-primary text-text"
-            data-testid="input-entity-name"
-          />
-          <Button
-            onClick={handleAddEntity}
-            className="bg-primary hover:bg-primary/80 text-white"
-            data-testid="button-add-entity"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add
-          </Button>
+        
+        {/* FIX 1: Search Input implemented */}
+        <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral" />
+            <Input
+                placeholder="Search entities..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 border-neutral focus:border-primary text-text"
+                data-testid="input-entity-search"
+            />
         </div>
+        
+        {/* FIX 2: Replaced inline input with a button to open the New Entity Modal */}
+        <Button
+            onClick={onOpenNewEntityModal} // Calls the prop function to open the modal
+            className="w-full bg-primary hover:bg-primary/80 text-white mb-4"
+            data-testid="button-add-entity"
+        >
+            <Plus className="h-4 w-4 mr-2" />
+            New Entity
+        </Button>
 
         <div className="space-y-2">
-          {entities.map(entity => (
+          {filteredEntities.map(entity => (
             <Card
               key={entity.id}
               className={`p-4 cursor-pointer transition-colors ${
@@ -155,9 +163,16 @@ export default function EntityBuilder({
               </div>
             </Card>
           ))}
+          
+          {/* No results message */}
+          {searchTerm && filteredEntities.length === 0 && (
+              <p className="text-neutral text-center py-4">No entities match your search.</p>
+          )}
+
         </div>
       </div>
 
+      {/* --- Fields section is UNCHANGED but included for completeness --- */}
       {selectedEntity && (
         <div className="border-t border-neutral pt-6">
           <div className="flex items-center justify-between mb-4">
@@ -275,6 +290,9 @@ export default function EntityBuilder({
     </div>
   );
 }
+
+// FieldRow component and its related interfaces remain unchanged
+// ... (FieldRow component code goes here) ...
 
 interface FieldRowProps {
   field: Field;

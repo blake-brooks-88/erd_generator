@@ -1,4 +1,4 @@
-import { Entity } from './storageService';
+import { Entity, Field } from './storageService';
 
 /**
  * Generates Mermaid erDiagram code from entities
@@ -41,12 +41,11 @@ export function generateMermaidCode(entities: Entity[]): string {
   const relationships = extractRelationships(entities);
   if (relationships.length > 0) {
     for (const rel of relationships) {
-      let relationshipLine = `  "${rel.fromEntity}" ${rel.cardinality} "${rel.toEntity}"`;
+      // CRITICAL FIX 1: Ensure the label always exists (defaults to empty string if somehow not provided below)
+      const label = rel.label || ""; 
       
-      // Add relationship label if present
-      if (rel.label) {
-        relationshipLine += ` : "${rel.label}"`;
-      }
+      // CRITICAL FIX 2: Always include the colon and quoted label to satisfy Mermaid syntax
+      let relationshipLine = `  "${rel.fromEntity}" ${rel.cardinality} "${rel.toEntity}" : "${label}"`;
       
       lines.push(relationshipLine);
     }
@@ -59,11 +58,12 @@ interface Relationship {
   fromEntity: string;
   toEntity: string;
   cardinality: string;
-  label?: string;
+  label: string; // Changed to required string based on new logic
 }
 
 /**
  * Extracts relationships from entities based on FK references
+ * Defaults the label to the Foreign Key field name if no custom label is provided.
  */
 function extractRelationships(entities: Entity[]): Relationship[] {
   const relationships: Relationship[] = [];
@@ -77,13 +77,16 @@ function extractRelationships(entities: Entity[]): Relationship[] {
         if (targetEntity) {
           const cardinality = mapCardinalityToMermaid(field.fkReference.cardinality);
           
-          const label = field.fkReference.relationshipLabel;
+          // IMPLEMENTATION OF STRATEGY 1:
+          // 1. Use the custom label if it exists.
+          // 2. Otherwise, use the name of the Foreign Key field itself.
+          const label = field.fkReference.relationshipLabel || field.name;
           
           relationships.push({
             fromEntity: entity.name,
             toEntity: targetEntity.name,
             cardinality,
-            ...(label && { label })
+            label: label // The label is now guaranteed to be a string
           });
         }
       }

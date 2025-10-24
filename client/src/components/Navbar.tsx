@@ -41,7 +41,8 @@ export default function Navbar({
   return (
     <nav className="bg-white text-text p-4 flex items-center justify-between border-b border-neutral shadow-sm">
       <div className="flex items-center gap-4">
-        <h1 className="text-xl font-semibold text-primary">ERD Generator</h1>
+          <img className="h-12" src='https://www.listengage.com/wp-content/uploads/2023/09/Favicon-List-Engage.svg' />
+          <h1 className="text-xl font-semibold text-text">ERD Generator</h1>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="border-neutral">
