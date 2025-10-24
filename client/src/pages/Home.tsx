@@ -5,7 +5,7 @@ import Navbar from '@/components/Navbar';
 import EntityBuilder from '@/components/EntityBuilder';
 import Visualizer from '@/components/Visualizer';
 import CodePanel from '@/components/CodePanel';
-import { Entity, Field, Project } from '@/lib/storageService'; // Use types
+import { Entity, Field, Project, FieldType } from '@/lib/storageService'; // Use types
 import { storageService } from '@/lib/localStorageAdapter'; // Use instance
 import { generateMermaidCode } from '@/lib/mermaidGenerator';
 import { useToast } from '@/hooks/use-toast';
@@ -71,6 +71,42 @@ function isValidProjectArray(data: any): data is Project[] {
         )
       )
   );
+}
+
+// Validate and normalize field type from CSV import
+function validateFieldType(typeString: string | undefined): FieldType {
+  const normalized = (typeString?.trim().toLowerCase() || 'string');
+  
+  const validTypes: FieldType[] = [
+    'string', 'text', 'int', 'float', 'number', 'decimal',
+    'boolean', 'date', 'datetime', 'timestamp', 'json', 'jsonb',
+    'uuid', 'enum', 'phone', 'email'
+  ];
+  
+  // Check if it's a valid type
+  if (validTypes.includes(normalized as FieldType)) {
+    return normalized as FieldType;
+  }
+  
+  // Map common variations
+  const typeMap: Record<string, FieldType> = {
+    'varchar': 'string',
+    'char': 'string',
+    'str': 'string',
+    'integer': 'int',
+    'bigint': 'int',
+    'double': 'float',
+    'real': 'float',
+    'bool': 'boolean',
+    'time': 'timestamp',
+  };
+  
+  if (typeMap[normalized]) {
+    return typeMap[normalized];
+  }
+  
+  // Default to string for unknown types
+  return 'string';
 }
 
 
@@ -279,10 +315,10 @@ export default function Home() {
         {
           id: uuidv4(),
           name: `${sourceEntity.name.toLowerCase()}_${sourcePK.name}`, // Include PK name
-          type: sourcePK.type,
+          type: sourcePK.type as FieldType,
           isPK: true,
           isFK: true,
-          notes: `References ${sourceEntity.name}(${sourcePK.name})`,
+          description: `References ${sourceEntity.name}(${sourcePK.name})`,
           fkReference: {
             targetEntityId: manyToManySourceId,
             targetFieldId: sourcePK.id,
@@ -292,10 +328,10 @@ export default function Home() {
         {
           id: uuidv4(),
           name: `${targetEntity.name.toLowerCase()}_${targetPK.name}`, // Include PK name
-          type: targetPK.type,
+          type: targetPK.type as FieldType,
           isPK: true,
           isFK: true,
-          notes: `References ${targetEntity.name}(${targetPK.name})`,
+          description: `References ${targetEntity.name}(${targetPK.name})`,
           fkReference: {
             targetEntityId: manyToManyTargetId,
             targetFieldId: targetPK.id,
@@ -411,19 +447,20 @@ export default function Home() {
                    const field: Field = {
                      id: uuidv4(),
                      name: fieldName,
-                     type: row.Type?.trim() || 'string',
+                     type: validateFieldType(row.Type),
                      isPK: row.Key?.trim().toUpperCase() === 'PK',
                      isFK: row.Key?.trim().toUpperCase() === 'FK',
-                     notes: row.Notes?.trim() || '',
+                     description: row.Description?.trim() || row.Notes?.trim() || '', // Support both new and old column names
                      fkReference: (row.Key?.trim().toUpperCase() === 'FK' && row.ForeignKeyEntity && row.ForeignKeyField) ? {
                          targetEntityId: 'UNKNOWN',
                          targetFieldId: 'UNKNOWN',
-                         cardinality: cardinality
+                         cardinality: cardinality,
+                         relationshipLabel: row.RelationshipLabel?.trim() || undefined
                      } : undefined
                    };
 
                     if (field.isFK && row.ForeignKeyEntity) {
-                        field.notes = field.notes ? `${field.notes}\n(FK -> ${row.ForeignKeyEntity}.${row.ForeignKeyField || '?'})` : `(FK -> ${row.ForeignKeyEntity}.${row.ForeignKeyField || '?'})`;
+                        field.description = field.description ? `${field.description}\n(FK -> ${row.ForeignKeyEntity}.${row.ForeignKeyField || '?'})` : `(FK -> ${row.ForeignKeyEntity}.${row.ForeignKeyField || '?'})`;
                     }
 
                    entity.fields.push(field);
@@ -590,10 +627,11 @@ export default function Home() {
           Field: field.name,
           Type: field.type,
           Key: field.isPK ? 'PK' : field.isFK ? 'FK' : '',
-          Notes: field.notes || '',
+          Description: field.description || '',
           ForeignKeyEntity: fkEntityName,
           ForeignKeyField: fkFieldName,
-          Cardinality: field.fkReference?.cardinality || ''
+          Cardinality: field.fkReference?.cardinality || '',
+          RelationshipLabel: field.fkReference?.relationshipLabel || ''
         });
       });
     });

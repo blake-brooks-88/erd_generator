@@ -1,16 +1,37 @@
-// Interface definitions for data structures (Field, Entity, Project)
+// Extended field types to support various database column types
+export type FieldType = 
+  | 'string' 
+  | 'text'
+  | 'int' 
+  | 'float' 
+  | 'number' 
+  | 'decimal'
+  | 'boolean'
+  | 'date' 
+  | 'datetime' 
+  | 'timestamp'
+  | 'json' 
+  | 'jsonb'
+  | 'uuid'
+  | 'enum'
+  | 'phone'
+  | 'email';
+
+export interface FKReference {
+  targetEntityId: string;
+  targetFieldId: string;
+  cardinality: 'one-to-one' | 'one-to-many' | 'many-to-one';
+  relationshipLabel?: string | null | undefined; // Optional label for the relationship (e.g., "by customer_id")
+}
+
 export interface Field {
   id: string;
   name: string;
-  type: string;
+  type: FieldType;
   isPK: boolean;
   isFK: boolean;
-  notes: string;
-  fkReference?: {
-    targetEntityId: string;
-    targetFieldId: string;
-    cardinality: 'one-to-one' | 'one-to-many' | 'many-to-one';
-  };
+  description?: string | null | undefined; // Renamed from 'notes' - optional field description
+  fkReference?: FKReference;
 }
 
 export interface Entity {
@@ -26,15 +47,14 @@ export interface Project {
   lastModified: number;
 }
 
-// Updated StorageService interface
+// Storage Service Interface
 export interface StorageService {
-  getProjectList(): Project[];
-  loadProject(id: string): Project | null;
   saveProject(project: Project): void;
+  loadProject(id: string): Project | null;
   deleteProject(id: string): void;
+  getProjectList(): Project[];
+  replaceAllProjects(projects: Project[]): void;
   getMostRecentProjectId(): string | null;
-  setMostRecentProjectId?(id: string): void; // Optional, as not all adapters might need it explicitly
-  clearMostRecentProjectId?(): void; // Optional
-  replaceAllProjects(projects: Project[]): void; // New method for import
+  setMostRecentProjectId?(id: string): void;
+  clearMostRecentProjectId?(): void;
 }
-

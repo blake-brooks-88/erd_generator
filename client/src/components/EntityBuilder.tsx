@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Entity, Field } from '@/lib/storageService';
+import { Entity, Field, FieldType } from '@/lib/storageService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,7 +15,26 @@ import {
 import { Card } from '@/components/ui/card';
 import { Plus, Trash2, Users, Edit2, Check, X } from 'lucide-react';
 
-const DATA_TYPES = ['string', 'int', 'boolean', 'datetime', 'decimal', 'text', 'uuid'];
+// Extended data types to support various database column types
+const DATA_TYPES: FieldType[] = [
+  'string',
+  'text',
+  'int',
+  'float',
+  'number',
+  'decimal',
+  'boolean',
+  'date',
+  'datetime',
+  'timestamp',
+  'json',
+  'jsonb',
+  'uuid',
+  'enum',
+  'phone',
+  'email',
+];
+
 const CARDINALITY_OPTIONS = ['one-to-one', 'one-to-many', 'many-to-one'] as const;
 
 interface EntityBuilderProps {
@@ -44,10 +63,10 @@ export default function EntityBuilder({
   const [newEntityName, setNewEntityName] = useState('');
   const [newFieldData, setNewFieldData] = useState({
     name: '',
-    type: 'string',
+    type: 'string' as FieldType,
     isPK: false,
     isFK: false,
-    notes: '',
+    description: '',
   });
 
   const selectedEntity = entities.find(e => e.id === selectedEntityId);
@@ -64,13 +83,14 @@ export default function EntityBuilder({
       onAddField(selectedEntityId, {
         ...newFieldData,
         name: newFieldData.name.trim(),
+        description: newFieldData.description.trim() || undefined,
       });
       setNewFieldData({
         name: '',
         type: 'string',
         isPK: false,
         isFK: false,
-        notes: '',
+        description: '',
       });
     }
   };
@@ -172,7 +192,7 @@ export default function EntityBuilder({
                 <Label className="text-sm text-text">Data Type</Label>
                 <Select
                   value={newFieldData.type}
-                  onValueChange={(value) => setNewFieldData({ ...newFieldData, type: value })}
+                  onValueChange={(value: FieldType) => setNewFieldData({ ...newFieldData, type: value })}
                 >
                   <SelectTrigger className="border-neutral" data-testid="select-field-type">
                     <SelectValue />
@@ -218,13 +238,13 @@ export default function EntityBuilder({
             </div>
 
             <div>
-              <Label className="text-sm text-text">Notes (Optional)</Label>
+              <Label className="text-sm text-text">Description (Optional)</Label>
               <Textarea
-                placeholder="Additional notes..."
-                value={newFieldData.notes}
-                onChange={(e) => setNewFieldData({ ...newFieldData, notes: e.target.value })}
+                placeholder="Field description..."
+                value={newFieldData.description}
+                onChange={(e) => setNewFieldData({ ...newFieldData, description: e.target.value })}
                 className="border-neutral focus:border-primary min-h-[60px]"
-                data-testid="textarea-field-notes"
+                data-testid="textarea-field-description"
               />
             </div>
 
@@ -302,7 +322,7 @@ function FieldRow({ field, entities, currentEntityId, onUpdate, onDelete }: Fiel
               <Label className="text-sm text-text">Data Type</Label>
               <Select
                 value={editData.type}
-                onValueChange={(value) => setEditData({ ...editData, type: value })}
+                onValueChange={(value: FieldType) => setEditData({ ...editData, type: value })}
               >
                 <SelectTrigger className="border-neutral">
                   <SelectValue />
@@ -346,100 +366,127 @@ function FieldRow({ field, entities, currentEntityId, onUpdate, onDelete }: Fiel
           </div>
 
           <div>
-            <Label className="text-sm text-text">Notes</Label>
+            <Label className="text-sm text-text">Description</Label>
             <Textarea
-              value={editData.notes}
-              onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+              value={editData.description || ''}
+              onChange={(e) => setEditData({ ...editData, description: e.target.value })}
               className="border-neutral focus:border-primary min-h-[60px]"
+              placeholder="Field description..."
             />
           </div>
 
           {editData.isFK && (
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-neutral">
+            <div className="space-y-4 pt-2 border-t border-neutral">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label className="text-xs text-neutral">Related Entity</Label>
+                  <Select
+                    value={editData.fkReference?.targetEntityId || ''}
+                    onValueChange={(value) =>
+                      setEditData({
+                        ...editData,
+                        fkReference: {
+                          targetEntityId: value,
+                          targetFieldId: '',
+                          cardinality: editData.fkReference?.cardinality || 'one-to-many',
+                          relationshipLabel: editData.fkReference?.relationshipLabel,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs border-neutral">
+                      <SelectValue placeholder="Select entity" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {otherEntities.map(entity => (
+                        <SelectItem key={entity.id} value={entity.id}>
+                          {entity.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {editData.fkReference?.targetEntityId && (
+                  <>
+                    <div>
+                      <Label className="text-xs text-neutral">Related Field</Label>
+                      <Select
+                        value={editData.fkReference.targetFieldId}
+                        onValueChange={(value) =>
+                          setEditData({
+                            ...editData,
+                            fkReference: {
+                              ...editData.fkReference!,
+                              targetFieldId: value,
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-xs border-neutral">
+                          <SelectValue placeholder="Select field" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {entities
+                            .find(e => e.id === editData.fkReference!.targetEntityId)
+                            ?.fields.map(f => (
+                              <SelectItem key={f.id} value={f.id}>
+                                {f.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs text-neutral">Cardinality</Label>
+                      <Select
+                        value={editData.fkReference.cardinality}
+                        onValueChange={(value: typeof CARDINALITY_OPTIONS[number]) =>
+                          setEditData({
+                            ...editData,
+                            fkReference: {
+                              ...editData.fkReference!,
+                              cardinality: value,
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-xs border-neutral">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="one-to-one">One-to-One</SelectItem>
+                          <SelectItem value="one-to-many">One-to-Many</SelectItem>
+                          <SelectItem value="many-to-one">Many-to-One</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Relationship Label Input */}
               <div>
-                <Label className="text-xs text-neutral">Related Entity</Label>
-                <Select
-                  value={editData.fkReference?.targetEntityId || ''}
-                  onValueChange={(value) =>
+                <Label className="text-xs text-neutral">Relationship Label (Optional)</Label>
+                <Input
+                  placeholder='e.g., "by customer_id", "places", "has"'
+                  value={editData.fkReference?.relationshipLabel || ''}
+                  onChange={(e) =>
                     setEditData({
                       ...editData,
                       fkReference: {
-                        targetEntityId: value,
-                        targetFieldId: '',
-                        cardinality: editData.fkReference?.cardinality || 'one-to-many',
+                        ...editData.fkReference!,
+                        relationshipLabel: e.target.value,
                       },
                     })
                   }
-                >
-                  <SelectTrigger className="h-8 text-xs border-neutral">
-                    <SelectValue placeholder="Select entity" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {otherEntities.map(entity => (
-                      <SelectItem key={entity.id} value={entity.id}>
-                        {entity.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  className="h-8 text-xs border-neutral focus:border-primary"
+                />
+                <p className="text-xs text-neutral mt-1">
+                  This label will appear on the relationship line in the diagram
+                </p>
               </div>
-
-              {editData.fkReference?.targetEntityId && (
-                <>
-                  <div>
-                    <Label className="text-xs text-neutral">Related Field</Label>
-                    <Select
-                      value={editData.fkReference.targetFieldId}
-                      onValueChange={(value) =>
-                        setEditData({
-                          ...editData,
-                          fkReference: {
-                            ...editData.fkReference!,
-                            targetFieldId: value,
-                          },
-                        })
-                      }
-                    >
-                      <SelectTrigger className="h-8 text-xs border-neutral">
-                        <SelectValue placeholder="Select field" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {entities
-                          .find(e => e.id === editData.fkReference!.targetEntityId)
-                          ?.fields.map(f => (
-                            <SelectItem key={f.id} value={f.id}>
-                              {f.name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs text-neutral">Cardinality</Label>
-                    <Select
-                      value={editData.fkReference.cardinality}
-                      onValueChange={(value: typeof CARDINALITY_OPTIONS[number]) =>
-                        setEditData({
-                          ...editData,
-                          fkReference: {
-                            ...editData.fkReference!,
-                            cardinality: value,
-                          },
-                        })
-                      }
-                    >
-                      <SelectTrigger className="h-8 text-xs border-neutral">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="one-to-one">One-to-One</SelectItem>
-                        <SelectItem value="one-to-many">One-to-Many</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
             </div>
           )}
 
@@ -486,8 +533,13 @@ function FieldRow({ field, entities, currentEntityId, onUpdate, onDelete }: Fiel
                 <span className="text-xs px-2 py-1 bg-warning text-white rounded">FK</span>
               )}
             </div>
-            {field.notes && (
-              <p className="text-sm text-neutral">{field.notes}</p>
+            {field.description && (
+              <p className="text-sm text-neutral">{field.description}</p>
+            )}
+            {field.isFK && field.fkReference?.relationshipLabel && (
+              <p className="text-xs text-primary mt-1">
+                Relationship: "{field.fkReference.relationshipLabel}"
+              </p>
             )}
           </div>
           <div className="flex gap-2">
@@ -511,93 +563,6 @@ function FieldRow({ field, entities, currentEntityId, onUpdate, onDelete }: Fiel
             </Button>
           </div>
         </div>
-
-        {field.isFK && field.fkReference && (
-          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-neutral">
-            <div>
-              <Label className="text-xs text-neutral">Related Entity</Label>
-              <Select
-                value={field.fkReference.targetEntityId}
-                onValueChange={(value) =>
-                  onUpdate({
-                    fkReference: {
-                      ...field.fkReference!,
-                      targetEntityId: value,
-                      targetFieldId: '',
-                    },
-                  })
-                }
-              >
-                <SelectTrigger className="h-8 text-xs border-neutral">
-                  <SelectValue placeholder="Select entity" />
-                </SelectTrigger>
-                <SelectContent>
-                  {otherEntities.map(entity => (
-                    <SelectItem key={entity.id} value={entity.id}>
-                      {entity.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {field.fkReference.targetEntityId && (
-              <>
-                <div>
-                  <Label className="text-xs text-neutral">Related Field</Label>
-                  <Select
-                    value={field.fkReference.targetFieldId}
-                    onValueChange={(value) =>
-                      onUpdate({
-                        fkReference: {
-                          ...field.fkReference!,
-                          targetFieldId: value,
-                        },
-                      })
-                    }
-                  >
-                    <SelectTrigger className="h-8 text-xs border-neutral">
-                      <SelectValue placeholder="Select field" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {entities
-                        .find(e => e.id === field.fkReference!.targetEntityId)
-                        ?.fields.map(f => (
-                          <SelectItem key={f.id} value={f.id}>
-                            {f.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label className="text-xs text-neutral">Cardinality</Label>
-                  <Select
-                    value={field.fkReference.cardinality}
-                    onValueChange={(value: typeof CARDINALITY_OPTIONS[number]) =>
-                      onUpdate({
-                        fkReference: {
-                          ...field.fkReference!,
-                          cardinality: value,
-                        },
-                      })
-                    }
-                  >
-                    <SelectTrigger className="h-8 text-xs border-neutral">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="one-to-one">One-to-One</SelectItem>
-                      <SelectItem value="one-to-many">One-to-Many</SelectItem>
-                      <SelectItem value="many-to-one">Many-to-One</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
-          </div>
-        )}
       </div>
     </Card>
   );

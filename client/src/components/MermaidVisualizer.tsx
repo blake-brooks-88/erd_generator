@@ -6,6 +6,8 @@ interface MermaidVisualizerProps {
 }
 
 export default function MermaidVisualizer({ code }: MermaidVisualizerProps) {
+
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
 
