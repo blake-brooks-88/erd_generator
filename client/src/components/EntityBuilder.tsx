@@ -85,7 +85,7 @@ export default function EntityBuilder({
             value={newEntityName}
             onChange={(e) => setNewEntityName(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleAddEntity()}
-            className="flex-1 border-neutral focus:border-primary"
+            className="flex-1 border-neutral focus:border-primary text-text"
             data-testid="input-entity-name"
           />
           <Button
