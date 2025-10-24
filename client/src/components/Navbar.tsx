@@ -20,9 +20,10 @@ interface NavbarProps {
   onRenameProject: () => void;
   onDeleteProject: () => void;
   onSelectProject: (id: string) => void;
-  onImport: () => void; // Changed from onImportCSV
+  onImportCSV: () => void; // Import CSV data dictionary
+  onImportJson: () => void; // Import JSON backup
   onExportCSV: () => void;
-  onExportJson: () => void; // Added prop for JSON export
+  onExportJson: () => void;
 }
 
 export default function Navbar({
@@ -32,9 +33,10 @@ export default function Navbar({
   onRenameProject,
   onDeleteProject,
   onSelectProject,
-  onImport, // Changed from onImportCSV
+  onImportCSV,
+  onImportJson,
   onExportCSV,
-  onExportJson, // Added prop
+  onExportJson,
 }: NavbarProps) {
   return (
     <nav className="bg-white text-text p-4 flex items-center justify-between border-b border-neutral shadow-sm">
@@ -86,41 +88,48 @@ export default function Navbar({
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Import Button with Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="border-neutral">
-              <FolderOpen className="h-4 w-4 mr-2" />
-              File
+            <Button variant="outline" className="border-neutral bg-info hover:bg-info/90 text-white hover:text-white">
+              <Upload className="h-4 w-4 mr-2" />
+              Import
               <ChevronDown className="h-4 w-4 ml-2" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onImport} data-testid="button-import">
+            <DropdownMenuItem onClick={onImportCSV} data-testid="button-import-csv">
               <Upload className="h-4 w-4 mr-2" />
-              Import CSV / JSON...
+              Import Data Dictionary (CSV)
             </DropdownMenuItem>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger data-testid="button-export-subtrigger">
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                 <DropdownMenuItem onClick={onExportCSV} data-testid="button-export-csv">
-                    Export Current as CSV
-                 </DropdownMenuItem>
-                 {/* --- New JSON Export Item --- */}
-                 <DropdownMenuItem onClick={onExportJson} data-testid="button-export-json">
-                    <FileJson className="h-4 w-4 mr-2" />
-                    Export All Projects (JSON Backup)
-                 </DropdownMenuItem>
-                 {/* --- End New Item --- */}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+            <DropdownMenuItem onClick={onImportJson} data-testid="button-import-json">
+              <FileJson className="h-4 w-4 mr-2" />
+              Import All Projects (JSON Backup)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
+        {/* Export Button with Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="border-neutral bg-success hover:bg-success/90 text-white hover:text-white">
+              <Download className="h-4 w-4 mr-2" />
+              Export
+              <ChevronDown className="h-4 w-4 ml-2" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onExportCSV} data-testid="button-export-csv">
+              <Download className="h-4 w-4 mr-2" />
+              Export Current as CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onExportJson} data-testid="button-export-json">
+              <FileJson className="h-4 w-4 mr-2" />
+              Export All Projects (JSON Backup)
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
     </nav>
   );
 }
-

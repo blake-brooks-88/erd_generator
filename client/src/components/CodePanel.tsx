@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, ChangeEvent, KeyboardEvent } from 'react';
 import { useProjectContext } from '@/store/projectStore';
 import { parseMermaidCode } from '@/lib/mermaidParser';
 import { generateMermaidCode } from '@/lib/mermaidGenerator';
@@ -37,24 +37,18 @@ export default function CodePanel({ initialCode, currentEntities }: CodePanelPro
 
    useEffect(() => {
      if (!isUserTyping.current && initialCode !== code) {
-       console.log("CodePanel: Updating internal code from initialCode prop");
        setCode(initialCode);
        setParseError(null);
      }
-      const timer = setTimeout(() => {
-        isUserTyping.current = false;
-      }, 100); 
-      return () => clearTimeout(timer);
    }, [initialCode, code]); 
 
    useEffect(() => {
      const generatedCodeFromProps = generateMermaidCode(currentEntities || []);
+     
      if (debouncedCode !== generatedCodeFromProps && isUserTyping.current) {
-        console.log("CodePanel: Debounced code changed, attempting parse...");
        try {
          const result = parseMermaidCode(debouncedCode);
          if ('error' in result) {
-            console.error("CodePanel: Parse error:", result.error);
            setParseError(result.error);
            toast({
                title: "Mermaid Syntax Error",
@@ -62,13 +56,11 @@ export default function CodePanel({ initialCode, currentEntities }: CodePanelPro
                variant: "destructive"
            });
          } else {
-            console.log("CodePanel: Parse successful, dispatching SET_ENTITIES");
            setEntities(result.entities); 
            setParseError(null);
            toast({ title: "Diagram updated from code" });
          }
        } catch (err) {
-         console.error("CodePanel: Unexpected parsing error:", err);
          const errorMsg = err instanceof Error ? err.message : "Unknown parsing error";
          setParseError(errorMsg);
          toast({
@@ -76,6 +68,9 @@ export default function CodePanel({ initialCode, currentEntities }: CodePanelPro
              description: errorMsg,
              variant: "destructive"
          });
+       } finally {
+         
+         isUserTyping.current = false;
        }
      }
    }, [debouncedCode, setEntities, currentEntities, toast]);
@@ -84,7 +79,59 @@ export default function CodePanel({ initialCode, currentEntities }: CodePanelPro
   const handleCodeChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     isUserTyping.current = true;
     setCode(event.target.value);
+    console.log(event.target.value);
   };
+
+
+  const handleTabInput = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key.toLowerCase() !== 'tab') {
+      return;
+    }
+    
+    event.preventDefault(); 
+    isUserTyping.current = true; 
+
+    const textarea = event.currentTarget;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+
+    if (event.shiftKey) {
+      const precedingText = textarea.value.substring(start - 4, start);
+
+      if (precedingText === '    ' && start === end) { 
+        const newValueWithIndent =
+          textarea.value.substring(0, start - 4) + textarea.value.substring(end);
+        
+        setCode(newValueWithIndent);
+
+        const cursorPosition = start - 4;
+        setTimeout(() => {
+          if (textAreaRef.current) {
+            textAreaRef.current.selectionStart = cursorPosition;
+            textAreaRef.current.selectionEnd = cursorPosition;
+          }
+        }, 0);
+      }
+      
+
+    } else {
+      const spaces = '    ';
+      const newValueWithOutdent =
+        textarea.value.substring(0, start) + spaces + textarea.value.substring(end);
+      
+      setCode(newValueWithOutdent);
+
+      const cursorPosition = start + spaces.length;
+  
+      
+      setTimeout(() => {
+        if (textAreaRef.current) { 
+          textAreaRef.current.selectionStart = cursorPosition;
+          textAreaRef.current.selectionEnd = cursorPosition;
+        }
+      }, 0);
+    }
+  }
 
   const handleCopyToClipboard = useCallback(() => {
     if (textAreaRef.current) {
@@ -98,6 +145,7 @@ export default function CodePanel({ initialCode, currentEntities }: CodePanelPro
                 legacyCopy();
             });
         } else {
+            legacyCopy();
         }
       } catch (err) {
         console.error('Failed to copy text: ', err);
@@ -147,6 +195,7 @@ export default function CodePanel({ initialCode, currentEntities }: CodePanelPro
         className={`flex-1 font-mono text-sm border-neutral focus:border-primary resize-none ${parseError ? 'border-error focus:border-error' : ''}`}
         spellCheck="false"
         data-testid="textarea-mermaid-code"
+        onKeyDown={handleTabInput}
       />
       {parseError && (
           <div className="mt-2 p-2 bg-error/10 border border-error/20 rounded text-error text-xs flex items-center">
@@ -157,4 +206,3 @@ export default function CodePanel({ initialCode, currentEntities }: CodePanelPro
     </div>
   );
 }
-

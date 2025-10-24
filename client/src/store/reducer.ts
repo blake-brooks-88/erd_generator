@@ -151,9 +151,17 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       }));
 
     case ActionTypes.SET_ENTITIES:
-        return updateAndSaveCurrentProject(project => ({
+        // FIX: Actually set the entities from the action payload!
+        console.log("REDUCER: SET_ENTITIES called");
+        console.log("REDUCER: Current project ID:", state.currentProjectId);
+        console.log("REDUCER: New entities:", action.payload.entities);
+        const result = updateAndSaveCurrentProject(project => ({
             ...project,
+            entities: action.payload.entities,
+            lastModified: Date.now()
         }));
+        console.log("REDUCER: SET_ENTITIES completed, updated projects:", result.projects);
+        return result;
 
     default: {
        const exhaustiveCheck: never = action;
@@ -162,4 +170,3 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
     }
   }
 }
-

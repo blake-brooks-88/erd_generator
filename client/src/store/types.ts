@@ -49,6 +49,5 @@ export interface ProjectContextType extends ProjectState {
   updateField: (entityId: string, fieldId: string, updates: Partial<Field>) => void;
   deleteField: (entityId: string, fieldId: string) => void;
   setEntities: (entities: Entity[]) => void;
-  dispatch: React.Dispatch<ProjectAction>;
 }
 

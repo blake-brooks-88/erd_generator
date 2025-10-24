@@ -9,8 +9,7 @@ import { Entity, Field, Project } from '@/lib/storageService'; // Use types
 import { storageService } from '@/lib/localStorageAdapter'; // Use instance
 import { generateMermaidCode } from '@/lib/mermaidGenerator';
 import { useToast } from '@/hooks/use-toast';
-import { useProjectContext } from '@/store/projectStore'; // Correct import
-import { ActionTypes } from '@/store/types'; // Import ActionTypes for dispatch
+import { useProjectContext } from '@/store/projectStore';
 
 import {
   AlertDialog,
@@ -91,7 +90,6 @@ export default function Home() {
     setEntities,
     isLoading,
     currentProjectId,
-    dispatch, // Need dispatch for SET_PROJECTS after JSON import
   } = useProjectContext();
 
   // Local UI state
@@ -105,7 +103,9 @@ export default function Home() {
   const [manyToManySourceId, setManyToManySourceId] = useState<string | null>(null);
   const [manyToManyTargetId, setManyToManyTargetId] = useState('');
   const [manyToManyJoinTable, setManyToManyJoinTable] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null); // Combined ref for both imports
+  // --- Separate file input refs for CSV and JSON ---
+  const csvFileInputRef = useRef<HTMLInputElement>(null);
+  const jsonFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // State for JSON import confirmation
@@ -184,7 +184,6 @@ export default function Home() {
     selectProject(id); // Context action handles state and storage update
   };
 
-  // --- MODIFIED handleAddEntityWithToast ---
   const handleAddEntityWithToast = (name: string) => {
     if (!currentProject) return;
     const trimmedName = name.trim();
@@ -197,7 +196,6 @@ export default function Home() {
     addEntity(newEntity); // Pass the full entity object
     toast({ title: 'Entity added successfully' }); // Show success toast from UI side
   };
-  // --- END MODIFICATION ---
 
   const handleDeleteEntityWithToast = (id: string) => {
     deleteEntity(id); // Use the correct action function
@@ -316,128 +314,151 @@ export default function Home() {
     setManyToManyJoinTable('');
   };
 
-  // Trigger for both CSV and JSON import
-  const handleImport = () => {
-    if (!fileInputRef.current) return;
-    // Reset file input value to allow re-uploading the same file
-    fileInputRef.current.value = '';
-    fileInputRef.current?.click();
+  // --- Separate handlers for CSV and JSON import ---
+  const handleImportCSV = () => {
+    console.log("handleImportCSV called");
+    if (!csvFileInputRef.current) {
+        console.error("CSV file input ref is not set.");
+        toast({ title: 'Import Error', description: 'File input element not found.', variant: 'destructive'});
+        return;
+    }
+    csvFileInputRef.current.value = ''; // Reset value
+    csvFileInputRef.current.click(); // Trigger the click
   };
 
-  // Handles reading and processing the selected file (CSV or JSON)
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportJson = () => {
+    console.log("handleImportJson called");
+    if (!jsonFileInputRef.current) {
+        console.error("JSON file input ref is not set.");
+        toast({ title: 'Import Error', description: 'File input element not found.', variant: 'destructive'});
+        return;
+    }
+    jsonFileInputRef.current.value = ''; // Reset value
+    jsonFileInputRef.current.click(); // Trigger the click
+  };
+  // --- END MODIFICATION ---
+
+  // Handles reading and processing CSV files
+  const handleCSVFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("handleCSVFileChange triggered");
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+        console.log("No file selected.");
+        return;
+    }
+    console.log("File selected:", file.name, file.type);
+
+    if (!currentProject) {
+        console.error("Cannot import CSV without an active project.");
+        toast({ title: 'Import Failed', description: 'Cannot import CSV without an active project selected.', variant: 'destructive' });
+        return;
+    }
 
     const reader = new FileReader();
 
     reader.onload = (event) => {
+        console.log("FileReader onload triggered");
         const fileContent = event.target?.result as string;
         if (!fileContent) {
+            console.error("Could not read file content.");
             toast({ title: 'Import Failed', description: 'Could not read file content.', variant: 'destructive' });
             return;
         }
+        console.log("File content read successfully (first 100 chars):", fileContent.substring(0, 100));
 
         try {
-            if (file.type === 'application/json' || file.name.endsWith('.json')) {
-                const parsedData = JSON.parse(fileContent);
-                if (!isValidProjectArray(parsedData)) {
-                     toast({ title: 'Invalid JSON', description: 'The JSON file does not contain a valid project array structure. Check console for details.', variant: 'destructive' });
-                     console.error("Invalid JSON structure:", parsedData);
-                     return;
-                }
-                setJsonDataToImport(parsedData);
-                setImportJsonDialogOpen(true); // Open confirmation dialog
+            Papa.parse<Record<string, string>>(fileContent, {
+              header: true,
+              skipEmptyLines: true,
+              complete: (results) => {
+                console.log("CSV parsing complete:", results);
+                const newEntitiesMap: Map<string, Entity> = new Map();
+                const existingEntitiesLower = currentProject.entities.map(e => e.name.toLowerCase());
+                console.log("Existing entity names (lowercase):", existingEntitiesLower);
 
-            } else if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
-                 if (!currentProject) {
-                     toast({ title: 'Import Failed', description: 'Cannot import CSV without an active project selected.', variant: 'destructive' });
-                     return;
-                 }
-                 // --- Process CSV ---
-                Papa.parse<Record<string, string>>(fileContent, {
-                  header: true,
-                  skipEmptyLines: true,
-                  complete: (results) => {
-                    const newEntitiesMap: Map<string, Entity> = new Map();
-                    // Use currentProject entities from context directly
-                    const existingEntitiesLower = currentProject.entities.map(e => e.name.toLowerCase());
+                results.data.forEach((row, index) => {
+                   const entityName = row.Entity?.trim();
+                   const fieldName = row.Field?.trim();
+                   if (!entityName || !fieldName) {
+                       console.warn(`Skipping row ${index + 2} due to missing Entity or Field name.`);
+                       return;
+                   }
 
-                    results.data.forEach((row, index) => {
-                       const entityName = row.Entity?.trim();
-                       const fieldName = row.Field?.trim();
-                       if (!entityName || !fieldName) {
-                           console.warn(`Skipping row ${index + 2} due to missing Entity or Field name.`);
-                           return; // Skip row if essential info missing
+                   const alreadyExists = existingEntitiesLower.includes(entityName.toLowerCase());
+                   if (alreadyExists) {
+                       if (!newEntitiesMap.has(entityName)) {
+                         console.warn(`Skipping entity "${entityName}" during CSV import as it already exists.`);
                        }
+                       newEntitiesMap.set(entityName, { id: 'SKIPPED', name: entityName, fields: [] });
+                       return;
+                   }
 
-                       const alreadyExists = existingEntitiesLower.includes(entityName.toLowerCase());
-                       // Completely skip entities that already exist in the project
-                       if (alreadyExists) {
-                           if (!newEntitiesMap.has(entityName)) { // Show warning only once per existing entity
-                             console.warn(`Skipping entity "${entityName}" during CSV import as it already exists.`);
-                           }
-                           newEntitiesMap.set(entityName, { id: 'SKIPPED', name: entityName, fields: [] }); // Mark as skipped
-                           return;
-                       }
-                       // Skip duplicate field within the *same* new entity being built from CSV
-                       if (newEntitiesMap.has(entityName) && newEntitiesMap.get(entityName)?.fields.some(f => f.name.toLowerCase() === fieldName.toLowerCase())) {
-                          console.warn(`Skipping duplicate field "${fieldName}" for entity "${entityName}" during CSV import.`);
-                          return;
-                        }
-
-                       let entity = newEntitiesMap.get(entityName);
-                       if (!entity) {
-                         entity = { id: uuidv4(), name: entityName, fields: [] };
-                         newEntitiesMap.set(entityName, entity);
-                       }
-
-                       // Validate cardinality if provided
-                       const inputCardinality = row.Cardinality?.trim().toLowerCase();
-                       const validCardinalities = ['one-to-one', 'one-to-many', 'many-to-one'];
-                       const cardinality = (validCardinalities.includes(inputCardinality || '') ? inputCardinality : 'many-to-one') as 'one-to-one' | 'one-to-many' | 'many-to-one';
-
-                       const field: Field = {
-                         id: uuidv4(),
-                         name: fieldName,
-                         type: row.Type?.trim() || 'string',
-                         isPK: row.Key?.trim().toUpperCase() === 'PK',
-                         isFK: row.Key?.trim().toUpperCase() === 'FK',
-                         notes: row.Notes?.trim() || '',
-                         fkReference: (row.Key?.trim().toUpperCase() === 'FK' && row.ForeignKeyEntity && row.ForeignKeyField) ? {
-                             targetEntityId: 'UNKNOWN', // Placeholder - Needs manual linking
-                             targetFieldId: 'UNKNOWN', // Placeholder
-                             cardinality: cardinality
-                         } : undefined
-                       };
-
-                        if (field.isFK && row.ForeignKeyEntity) {
-                            field.notes = field.notes ? `${field.notes}\n(FK -> ${row.ForeignKeyEntity}.${row.ForeignKeyField || '?'})` : `(FK -> ${row.ForeignKeyEntity}.${row.ForeignKeyField || '?'})`;
-                        }
-
-                       entity.fields.push(field);
-                     });
-
-                    // Filter out entities marked as 'SKIPPED'
-                    const newEntitiesArray = Array.from(newEntitiesMap.values()).filter(e => e.id !== 'SKIPPED');
-
-                    if (newEntitiesArray.length > 0) {
-                       // Append new entities to existing ones using the setEntities action
-                       setEntities([...currentProject.entities, ...newEntitiesArray]);
-                      toast({ title: 'CSV imported successfully', description: `${newEntitiesArray.length} new entities added. Existing entities were skipped.` });
-                    } else {
-                      toast({ title: 'CSV Import', description: 'No new entities found or processed in the CSV (existing entities are skipped).' });
+                   if (newEntitiesMap.has(entityName) && newEntitiesMap.get(entityName)?.fields.some(f => f.name.toLowerCase() === fieldName.toLowerCase())) {
+                      console.warn(`Skipping duplicate field "${fieldName}" for entity "${entityName}" during CSV import.`);
+                      return;
                     }
-                  },
-                   error: (err: any) => {
-                    console.error("CSV Parse Error:", err);
-                    toast({ title: 'Import Failed', description: `Failed to parse CSV data. ${err.message}`, variant: 'destructive'});
-                  }
-                });
-                // --- End Process CSV ---
-            } else {
-                 toast({ title: 'Unsupported File Type', description: 'Please select a .csv or .json file.', variant: 'destructive' });
-            }
+
+                   let entity = newEntitiesMap.get(entityName);
+                   if (!entity) {
+                     entity = { id: uuidv4(), name: entityName, fields: [] };
+                     newEntitiesMap.set(entityName, entity);
+                   }
+
+                   const inputCardinality = row.Cardinality?.trim().toLowerCase();
+                   const validCardinalities = ['one-to-one', 'one-to-many', 'many-to-one'];
+                   const cardinality = (validCardinalities.includes(inputCardinality || '') ? inputCardinality : 'many-to-one') as 'one-to-one' | 'one-to-many' | 'many-to-one';
+
+                   const field: Field = {
+                     id: uuidv4(),
+                     name: fieldName,
+                     type: row.Type?.trim() || 'string',
+                     isPK: row.Key?.trim().toUpperCase() === 'PK',
+                     isFK: row.Key?.trim().toUpperCase() === 'FK',
+                     notes: row.Notes?.trim() || '',
+                     fkReference: (row.Key?.trim().toUpperCase() === 'FK' && row.ForeignKeyEntity && row.ForeignKeyField) ? {
+                         targetEntityId: 'UNKNOWN',
+                         targetFieldId: 'UNKNOWN',
+                         cardinality: cardinality
+                     } : undefined
+                   };
+
+                    if (field.isFK && row.ForeignKeyEntity) {
+                        field.notes = field.notes ? `${field.notes}\n(FK -> ${row.ForeignKeyEntity}.${row.ForeignKeyField || '?'})` : `(FK -> ${row.ForeignKeyEntity}.${row.ForeignKeyField || '?'})`;
+                    }
+
+                   entity.fields.push(field);
+                 });
+
+                const newEntitiesArray = Array.from(newEntitiesMap.values()).filter(e => e.id !== 'SKIPPED');
+                console.log("New entities created from CSV:", newEntitiesArray);
+                console.log("Number of new entities:", newEntitiesArray.length);
+
+                if (newEntitiesArray.length > 0) {
+                   console.log("========== CSV IMPORT DEBUG ==========");
+                   console.log("Current project entities:", currentProject.entities);
+                   console.log("New entities to add:", newEntitiesArray);
+                   
+                   const combinedEntities = [...currentProject.entities, ...newEntitiesArray];
+                   console.log("Combined entities:", combinedEntities);
+                   console.log("Calling setEntities with combined list");
+                   
+                   // Use setEntities which now properly updates state and saves to storage
+                   setEntities(combinedEntities);
+                   console.log("setEntities called successfully");
+                   console.log("======================================");
+                   
+                   toast({ title: 'CSV imported successfully', description: `${newEntitiesArray.length} new entities added. Existing entities were skipped.` });
+                   
+                } else {
+                  console.log("No new entities found in CSV.");
+                  toast({ title: 'CSV Import', description: 'No new entities found or processed in the CSV (existing entities are skipped).' });
+                }
+              },
+               error: (err: any) => {
+                console.error("CSV Parse Error:", err);
+                toast({ title: 'Import Failed', description: `Failed to parse CSV data. ${err.message}`, variant: 'destructive'});
+              }
+            });
         } catch (error) {
             console.error("File Processing Error:", error);
              toast({ title: 'Import Failed', description: `Error processing file. ${error instanceof Error ? error.message : ''}`, variant: 'destructive' });
@@ -445,36 +466,98 @@ export default function Home() {
     };
 
     reader.onerror = () => {
+        console.error("FileReader error");
         toast({ title: 'Import Failed', description: 'Could not read the selected file.', variant: 'destructive' });
     };
 
     reader.readAsText(file);
 
-    // Reset file input value immediately after selection
     if (e.target) {
         e.target.value = '';
+        console.log("File input value reset.");
+    }
+  };
+
+  // Handles reading and processing JSON backup files
+  const handleJSONFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("handleJSONFileChange triggered");
+    const file = e.target.files?.[0];
+    if (!file) {
+        console.log("No file selected.");
+        return;
+    }
+    console.log("File selected:", file.name, file.type);
+
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+        console.log("FileReader onload triggered");
+        const fileContent = event.target?.result as string;
+        if (!fileContent) {
+            console.error("Could not read file content.");
+            toast({ title: 'Import Failed', description: 'Could not read file content.', variant: 'destructive' });
+            return;
+        }
+        console.log("File content read successfully (first 100 chars):", fileContent.substring(0, 100));
+
+        try {
+            console.log("Processing as JSON...");
+            const parsedData = JSON.parse(fileContent);
+            console.log("JSON parsed:", parsedData);
+            if (!isValidProjectArray(parsedData)) {
+                 console.error("Invalid JSON structure:", parsedData);
+                 toast({ title: 'Invalid JSON', description: 'The JSON file does not contain a valid project array structure. Check console for details.', variant: 'destructive' });
+                 return;
+            }
+            console.log("JSON is valid. Setting data and opening dialog.");
+            setJsonDataToImport(parsedData);
+            setImportJsonDialogOpen(true);
+        } catch (error) {
+            console.error("File Processing Error:", error);
+             toast({ title: 'Import Failed', description: `Error processing file. ${error instanceof Error ? error.message : ''}`, variant: 'destructive' });
+        }
+    };
+
+    reader.onerror = () => {
+        console.error("FileReader error");
+        toast({ title: 'Import Failed', description: 'Could not read the selected file.', variant: 'destructive' });
+    };
+
+    reader.readAsText(file);
+
+    if (e.target) {
+        e.target.value = '';
+        console.log("File input value reset.");
     }
   };
 
   // Confirmation step for JSON import (overwrites everything)
   const confirmImportJson = () => {
-    if (!jsonDataToImport) return;
+    console.log("confirmImportJson called");
+    if (!jsonDataToImport) {
+        console.error("No JSON data to import.");
+        return;
+    }
+    console.log("Data to import:", jsonDataToImport);
 
     try {
         // Replace projects in storage
+        console.log("Calling storageService.replaceAllProjects");
         storageService.replaceAllProjects(jsonDataToImport);
+        console.log("replaceAllProjects completed.");
 
-        // Dispatch action to update application state with the new list
-        // This will trigger the useEffect in projectStore to select the most recent project from the new list
-        dispatch({ type: ActionTypes.SET_PROJECTS, payload: jsonDataToImport });
-
-
-        toast({ title: 'Projects imported successfully!', description: 'All previous projects have been replaced.' });
+        toast({ title: 'Projects imported successfully!', description: 'Page will refresh to show changes.' });
+        
+        // Reload page to update state from storage
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
     } catch (error) {
          console.error("JSON Import Confirmation Error:", error);
          toast({ title: 'Import Failed', description: `Error saving imported projects. ${error instanceof Error ? error.message : ''}`, variant: 'destructive' });
     } finally {
         // Clean up state regardless of success/failure
+        console.log("Cleaning up import state.");
         setImportJsonDialogOpen(false);
         setJsonDataToImport(null);
     }
@@ -585,10 +668,30 @@ export default function Home() {
                   onRenameProject={handleRenameProject}
                   onDeleteProject={handleDeleteProject}
                   onSelectProject={handleSelectProject}
-                  onImport={handleImport}
+                  onImportCSV={handleImportCSV}
+                  onImportJson={handleImportJson}
                   onExportCSV={handleExportCSV}
                   onExportJson={handleExportJson}
                 />
+                
+                {/* Separate file inputs for CSV and JSON import */}
+                <input
+                  ref={csvFileInputRef}
+                  type="file"
+                  accept=".csv, text/csv"
+                  onChange={handleCSVFileChange}
+                  className="hidden"
+                  data-testid="input-file-import-csv"
+                />
+                <input
+                  ref={jsonFileInputRef}
+                  type="file"
+                  accept=".json, application/json"
+                  onChange={handleJSONFileChange}
+                  className="hidden"
+                  data-testid="input-file-import-json"
+                />
+                
                 <div className="flex-1 flex justify-center items-center text-neutral text-lg">
                   No project selected. Create a new project or import one to begin.
                 </div>
@@ -693,20 +796,28 @@ export default function Home() {
         onRenameProject={handleRenameProject}
         onDeleteProject={handleDeleteProject}
         onSelectProject={handleSelectProject}
-        onImport={handleImport} // Consolidated import trigger
+        onImportCSV={handleImportCSV}
+        onImportJson={handleImportJson}
         onExportCSV={handleExportCSV}
         onExportJson={handleExportJson}
       />
 
-      {/* Single file input for both types */}
+      {/* Separate file inputs for CSV and JSON */}
       <input
-        ref={fileInputRef}
+        ref={csvFileInputRef}
         type="file"
-        // Allow both CSV and JSON
-        accept=".csv, application/json, text/csv"
-        onChange={handleFileChange}
+        accept=".csv, text/csv"
+        onChange={handleCSVFileChange}
         className="hidden"
-        data-testid="input-file-import"
+        data-testid="input-file-import-csv"
+      />
+      <input
+        ref={jsonFileInputRef}
+        type="file"
+        accept=".json, application/json"
+        onChange={handleJSONFileChange}
+        className="hidden"
+        data-testid="input-file-import-json"
       />
 
       <div className="flex-1 overflow-hidden">
@@ -958,4 +1069,3 @@ export default function Home() {
     </div>
   );
 }
-
