@@ -79,7 +79,7 @@ export default function EntityBuilder({
     <div className="h-full overflow-y-auto bg-white p-6 space-y-6">
       <div>
         <h2 className="text-lg font-medium text-text mb-4">Entities</h2>
-        <div className="flex gap-2 mb-4">
+        <div className="@container flex flex-col gap-2 mb-4">
           <Input
             placeholder="Entity name (e.g., Users)"
             value={newEntityName}

@@ -5,6 +5,9 @@ export default {
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
+      containers: {
+        'sm': '(max-width: 400px)',
+      },
       borderRadius: {
         lg: ".5625rem", /* 9px */
         md: ".375rem", /* 6px */
@@ -12,14 +15,14 @@ export default {
       },
       colors: {
         // Custom semantic palette for ERD application
-        primary: '#FF6F61',
-        secondary: '#004D40',
-        accent: '#66DDAA',
+        primary: '#E49A43', // orange
+        secondary: '#4AA0D9', // blue
+        accent: '#BED163', // green
         base: '#FFFBF5',
         text: '#333D3A',
         neutral: '#AAB0AF',
-        info: '#0288D1',
-        success: '#2E7D32',
+        info: '#E49A43',
+        success: '#E49A43',
         warning: '#FFC107',
         error: '#D32F2F',
         

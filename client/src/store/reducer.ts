@@ -11,26 +11,22 @@ export const initialState: ProjectState = {
 
 export function projectReducer(state: ProjectState, action: ProjectAction): ProjectState {
 
-  // Simplified helper function
   const updateAndSaveCurrentProject = (updateFn: (project: Project) => Project): ProjectState => {
-    if (!state.currentProjectId) return state; // Do nothing if no project is selected
+    if (!state.currentProjectId) return state; 
 
     let updatedProject: Project | undefined;
     const updatedProjects = state.projects.map(p => {
       if (p.id === state.currentProjectId) {
-        // Apply the update function to the current project
         updatedProject = updateFn({ ...p });
         return updatedProject;
       }
       return p;
     });
 
-    // If the current project was found and updated, save it
     if (updatedProject) {
       storageService.saveProject(updatedProject);
     }
 
-    // Return the new state with the updated projects list
     return { ...state, projects: updatedProjects };
   };
 
@@ -46,7 +42,6 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         const recentId = storageService.getMostRecentProjectId();
         currentProjectId = projects.find(p => p.id === recentId)?.id || projects[0]?.id || null;
       }
-      // No need to call setMostRecentProjectId here, loading handles it.
       return {
         ...state,
         projects,
@@ -56,14 +51,10 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
     }
 
      case ActionTypes.LOAD_PROJECTS: {
-         // This action type might be redundant if useEffect handles initial load,
-         // but we handle it to satisfy exhaustiveness check.
          return state;
      }
 
     case ActionTypes.SELECT_PROJECT: {
-      // Saving the selected ID happens implicitly via lastModified on save,
-      // and storageService.getMostRecentProjectId() reads it dynamically.
       return { ...state, currentProjectId: action.payload };
     }
 
@@ -75,11 +66,11 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         lastModified: Date.now(),
       };
       const updatedProjects = [...state.projects, newProject];
-      storageService.saveProject(newProject); // Save the new project
+      storageService.saveProject(newProject); 
       return {
         ...state,
         projects: updatedProjects,
-        currentProjectId: newProject.id, // Select the new project
+        currentProjectId: newProject.id, 
       };
     }
 
@@ -89,7 +80,7 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         );
         const projectToSave = updatedProjects.find(p => p.id === action.payload.id);
         if (projectToSave) {
-            storageService.saveProject(projectToSave); // Updates lastModified
+            storageService.saveProject(projectToSave);
         }
         return { ...state, projects: updatedProjects };
      }
@@ -99,10 +90,10 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       storageService.deleteProject(action.payload);
       let nextProjectId: string | null = null;
       if (state.currentProjectId === action.payload) {
-         const recentId = storageService.getMostRecentProjectId(); // Gets ID based on remaining projects
+         const recentId = storageService.getMostRecentProjectId();
          nextProjectId = remainingProjects.find(p => p.id === recentId)?.id || remainingProjects[0]?.id || null;
       } else {
-        nextProjectId = state.currentProjectId; // Keep current selection if it wasn't deleted
+        nextProjectId = state.currentProjectId;
       }
 
       return {
@@ -113,21 +104,18 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
     }
 
     case ActionTypes.ADD_ENTITY:
-        // Now uses the simplified helper
         return updateAndSaveCurrentProject(project => ({
             ...project,
             entities: [...project.entities, action.payload.entity]
         }));
 
     case ActionTypes.DELETE_ENTITY:
-      // Now uses the simplified helper
       return updateAndSaveCurrentProject(project => ({
         ...project,
         entities: project.entities.filter(e => e.id !== action.payload.entityId),
       }));
 
     case ActionTypes.ADD_FIELD:
-      // Now uses the simplified helper
       return updateAndSaveCurrentProject(project => ({
         ...project,
         entities: project.entities.map(e =>
@@ -138,7 +126,6 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       }));
 
      case ActionTypes.UPDATE_FIELD:
-         // Now uses the simplified helper
          return updateAndSaveCurrentProject(project => ({
             ...project,
             entities: project.entities.map(e =>
@@ -154,7 +141,6 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
          }));
 
     case ActionTypes.DELETE_FIELD:
-      // Now uses the simplified helper
       return updateAndSaveCurrentProject(project => ({
         ...project,
         entities: project.entities.map(e =>
@@ -165,14 +151,11 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       }));
 
     case ActionTypes.SET_ENTITIES:
-        // Now uses the simplified helper
         return updateAndSaveCurrentProject(project => ({
             ...project,
-            entities: action.payload.entities, // Replaces all entities
         }));
 
     default: {
-       // This handles potential unknown actions during development
        const exhaustiveCheck: never = action;
        console.warn(`Unhandled action type: ${(exhaustiveCheck as any)?.type}`);
        return state;
