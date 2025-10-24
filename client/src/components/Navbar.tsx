@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Project } from '@/lib/storageService';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -7,13 +7,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
-import { ChevronDown, Plus, Edit2, Trash2, Upload, Download } from 'lucide-react';
-
-interface Project {
-  id: string;
-  name: string;
-}
+import { ChevronDown, FilePlus, Edit, Trash2, FolderOpen, Upload, Download, FileJson } from 'lucide-react'; // Added FileJson
 
 interface NavbarProps {
   currentProject: Project | null;
@@ -22,8 +20,9 @@ interface NavbarProps {
   onRenameProject: () => void;
   onDeleteProject: () => void;
   onSelectProject: (id: string) => void;
-  onImportCSV: () => void;
+  onImport: () => void; // Changed from onImportCSV
   onExportCSV: () => void;
+  onExportJson: () => void; // Added prop for JSON export
 }
 
 export default function Navbar({
@@ -33,89 +32,95 @@ export default function Navbar({
   onRenameProject,
   onDeleteProject,
   onSelectProject,
-  onImportCSV,
+  onImport, // Changed from onImportCSV
   onExportCSV,
+  onExportJson, // Added prop
 }: NavbarProps) {
   return (
-    <nav className="h-14 bg-secondary flex items-center justify-between px-6 shadow-sm">
+    <nav className="bg-white text-text p-4 flex items-center justify-between border-b border-neutral shadow-sm">
       <div className="flex items-center gap-4">
-        <h1 className="text-xl font-semibold text-base">ERD Generator</h1>
-        
+        <h1 className="text-xl font-semibold text-primary">ERD Generator</h1>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="bg-secondary hover:bg-secondary/90 text-base"
-              data-testid="button-projects-dropdown"
-            >
-              <span className="mr-2">{currentProject?.name || 'Select Project'}</span>
-              <ChevronDown className="h-4 w-4" />
+            <Button variant="outline" className="border-neutral">
+              {currentProject ? currentProject.name : 'Select Project'}
+              <ChevronDown className="h-4 w-4 ml-2" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56 bg-white border-neutral shadow-lg">
+          <DropdownMenuContent align="start">
             <DropdownMenuLabel>Projects</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {projects.map(project => (
               <DropdownMenuItem
                 key={project.id}
                 onClick={() => onSelectProject(project.id)}
-                className="hover:bg-primary/10 cursor-pointer"
-                data-testid={`menu-item-project-${project.id}`}
+                disabled={project.id === currentProject?.id}
+                data-testid={`project-select-${project.id}`}
               >
-                {project.name}
+                {project.name} {project.id === currentProject?.id && '(Current)'}
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={onCreateProject}
-              className="text-primary hover:bg-primary/10 cursor-pointer"
-              data-testid="menu-item-create-project"
-            >
-              <Plus className="h-4 w-4 mr-2" />
+            <DropdownMenuItem onClick={onCreateProject} data-testid="button-create-project">
+              <FilePlus className="h-4 w-4 mr-2" />
               Create New Project
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={onRenameProject}
-              className="text-primary hover:bg-primary/10 cursor-pointer"
-              data-testid="menu-item-rename-project"
-              disabled={!currentProject}
-            >
-              <Edit2 className="h-4 w-4 mr-2" />
-              Rename Current Project
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={onDeleteProject}
-              className="text-error hover:bg-error/10 cursor-pointer"
-              data-testid="menu-item-delete-project"
-              disabled={!currentProject}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Current Project
-            </DropdownMenuItem>
+            {currentProject && (
+              <>
+                <DropdownMenuItem onClick={onRenameProject} data-testid="button-rename-project">
+                  <Edit className="h-4 w-4 mr-2" />
+                  Rename Current Project
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={onDeleteProject}
+                  className="text-error focus:text-error focus:bg-error/10"
+                  data-testid="button-delete-project"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Current Project
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
       <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          className="bg-info hover:bg-info/80 text-white"
-          onClick={onImportCSV}
-          data-testid="button-import-csv"
-        >
-          <Upload className="h-4 w-4 mr-2" />
-          Import CSV
-        </Button>
-        <Button
-          variant="ghost"
-          className="bg-success hover:bg-success/80 text-white"
-          onClick={onExportCSV}
-          data-testid="button-export-csv"
-        >
-          <Download className="h-4 w-4 mr-2" />
-          Export CSV
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="border-neutral">
+              <FolderOpen className="h-4 w-4 mr-2" />
+              File
+              <ChevronDown className="h-4 w-4 ml-2" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onImport} data-testid="button-import">
+              <Upload className="h-4 w-4 mr-2" />
+              Import CSV / JSON...
+            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger data-testid="button-export-subtrigger">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                 <DropdownMenuItem onClick={onExportCSV} data-testid="button-export-csv">
+                    Export Current as CSV
+                 </DropdownMenuItem>
+                 {/* --- New JSON Export Item --- */}
+                 <DropdownMenuItem onClick={onExportJson} data-testid="button-export-json">
+                    <FileJson className="h-4 w-4 mr-2" />
+                    Export All Projects (JSON Backup)
+                 </DropdownMenuItem>
+                 {/* --- End New Item --- */}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </nav>
   );
 }
+
