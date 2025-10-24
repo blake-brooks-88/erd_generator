@@ -357,6 +357,7 @@ export default function Home() {
             targetEntityId: manyToManySourceId,
             targetFieldId: sourcePK.id,
             cardinality: 'many-to-one',
+            relationshipLabel: `${sourceEntity.name} to ${targetEntity.name}`
           },
         },
         {
@@ -370,6 +371,7 @@ export default function Home() {
             targetEntityId: manyToManyTargetId,
             targetFieldId: targetPK.id,
             cardinality: 'many-to-one',
+            relationshipLabel: `${targetEntity.name} to ${sourceEntity.name}`
           },
         },
       ],

@@ -63,7 +63,7 @@ interface Relationship {
 
 /**
  * Extracts relationships from entities based on FK references
- * Defaults the label to the Foreign Key field name if no custom label is provided.
+ * SIMPLIFIED: If a field has fkReference with cardinality, output that relationship
  */
 function extractRelationships(entities: Entity[]): Relationship[] {
   const relationships: Relationship[] = [];
@@ -71,22 +71,19 @@ function extractRelationships(entities: Entity[]): Relationship[] {
 
   for (const entity of entities) {
     for (const field of entity.fields) {
-      if (field.isFK && field.fkReference) {
+      // If field has an fkReference with cardinality, create the relationship
+      if (field.fkReference && field.fkReference.cardinality) {
         const targetEntity = entityMap.get(field.fkReference.targetEntityId);
         
         if (targetEntity) {
           const cardinality = mapCardinalityToMermaid(field.fkReference.cardinality);
-          
-          // IMPLEMENTATION OF STRATEGY 1:
-          // 1. Use the custom label if it exists.
-          // 2. Otherwise, use the name of the Foreign Key field itself.
           const label = field.fkReference.relationshipLabel || field.name;
           
           relationships.push({
             fromEntity: entity.name,
             toEntity: targetEntity.name,
             cardinality,
-            label: label // The label is now guaranteed to be a string
+            label: label
           });
         }
       }
@@ -99,7 +96,7 @@ function extractRelationships(entities: Entity[]): Relationship[] {
 /**
  * Maps our cardinality types to Mermaid relationship syntax
  */
-function mapCardinalityToMermaid(cardinality: 'one-to-one' | 'one-to-many' | 'many-to-one'): string {
+function mapCardinalityToMermaid(cardinality: 'one-to-one' | 'one-to-many' | 'many-to-one' | 'many-to-many'): string {
   switch (cardinality) {
     case 'one-to-one':
       return '||--||';
@@ -107,6 +104,8 @@ function mapCardinalityToMermaid(cardinality: 'one-to-one' | 'one-to-many' | 'ma
       return '||--o{';
     case 'many-to-one':
       return '}o--||';
+    case 'many-to-many':
+      return '}o--o{';
     default:
       return '||--o{';
   }

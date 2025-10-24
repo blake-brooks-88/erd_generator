@@ -171,10 +171,6 @@ export default function MermaidVisualizer({ code }: MermaidVisualizerProps) {
         e.preventDefault();
         handleResetZoom();
       }
-      if (e.key === 'f' || e.key === 'F') {
-        e.preventDefault();
-        handleFitToScreen();
-      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -184,7 +180,7 @@ export default function MermaidVisualizer({ code }: MermaidVisualizerProps) {
   return (
     <div className="h-full w-full flex flex-col bg-white relative">
       {/* Zoom Controls */}
-      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-white/95 backdrop-blur-sm p-2 rounded-lg shadow-lg border border-neutral">
+      <div className="absolute top-4 align-center right-4 z-10 flex flex-col gap-2 bg-white/95 backdrop-blur-sm p-2 rounded-lg shadow-lg border border-neutral">
         <Button
           size="sm"
           variant="ghost"
@@ -281,10 +277,6 @@ export default function MermaidVisualizer({ code }: MermaidVisualizerProps) {
           <span className="text-neutral/50">•</span>
           <span>Drag to pan</span>
           <span className="text-neutral/50">•</span>
-          <span className="flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 bg-neutral/10 rounded border border-neutral/20 font-mono text-[10px]">F</kbd>
-            to fit
-          </span>
         </div>
       </div>
     </div>

@@ -90,25 +90,10 @@ export default function Navbar({
 
       <div className="flex items-center gap-2">
         {/* Import Button with Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="border-neutral bg-info hover:bg-info/90 text-white hover:text-white">
-              <Upload className="h-4 w-4 mr-2" />
-              Import
-              <ChevronDown className="h-4 w-4 ml-2" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onImportCSV} data-testid="button-import-csv">
-              <Upload className="h-4 w-4 mr-2" />
-              Import Data Dictionary (CSV)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onImportJson} data-testid="button-import-json">
-              <FileJson className="h-4 w-4 mr-2" />
-              Import All Projects (JSON Backup)
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button onClick={onImportCSV} variant="outline" className="border-neutral bg-info hover:bg-info/90 text-white hover:text-white">
+          <Upload className="h-4 w-4 mr-2" />
+          Import Project Backup
+        </Button>
 
         {/* Export Button with Dropdown */}
         <DropdownMenu>
@@ -122,7 +107,7 @@ export default function Navbar({
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={onExportCSV} data-testid="button-export-csv">
               <Download className="h-4 w-4 mr-2" />
-              Export Current as CSV
+              Export Data Dictionary as CSV
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onExportJson} data-testid="button-export-json">
               <FileJson className="h-4 w-4 mr-2" />
