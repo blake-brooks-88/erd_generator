@@ -22,18 +22,15 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.url.substring(7), "client/src"),
-      "@shared": path.resolve(import.meta.url.substring(7), "shared"),
-      "@assets": path.resolve(import.meta.url.substring(7), "attached_assets"),
+      "@": path.resolve(__dirname, "client/src"),
+      "@shared": path.resolve(__dirname, "shared"),
+      "@assets": path.resolve(__dirname, "attached_assets"),
     },
   },
-  root: path.resolve(import.meta.url.substring(7), "client"),
+  root: path.resolve(__dirname, "client"),
   build: {
-    outDir: path.resolve(import.meta.url.substring(7), "dist"),
+    outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
-    rollupOptions: {
-      input: path.resolve(import.meta.url.substring(7), "client/index.html"),
-    },
   },
   server: {
     fs: {
