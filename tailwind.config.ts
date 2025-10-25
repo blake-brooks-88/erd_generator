@@ -14,44 +14,50 @@ export default {
         sm: ".1875rem", /* 3px */
       },
       colors: {
-        // Custom semantic palette for ERD application
-        primary: '#E49A43', // orange
-        secondary: '#4AA0D9', // blue
-        accent: '#BED163', // green
-        base: '#FFFBF5',
-        text: '#333D3A',
-        neutral: '#AAB0AF',
-        info: '#E49A43',
-        success: '#E49A43',
-        warning: '#FFC107',
-        error: '#D32F2F',
-        
-        // Shadcn compatibility layer
-        background: "hsl(var(--background) / <alpha-value>)",
-        foreground: "hsl(var(--foreground) / <alpha-value>)",
-        border: "hsl(var(--border) / <alpha-value>)",
-        input: "hsl(var(--input) / <alpha-value>)",
+        // --- Custom Semantic Palette (High Contrast, Branded) ---
+        'primary': '#E49A43', // Orange - Main CTA, Active State
+        'primary-dark': '#BF7724', // Primary Hover
+        'secondary': '#4AA0D9', // Blue - Secondary Action, Complementary
+        'accent': '#BED163', // Green - Tertiary Accent, Success
+
+        // Backgrounds & Text
+        'page-bg': '#FFFFFF',    // Main application background
+        'base': '#F5F5F5',       // Component/Card background for subtle contrast
+        'text': '#1C2023',       // High-contrast main text
+        'neutral': '#8A959C',    // Subtle text, borders, inactive elements
+        'border': '#E0E0E0',     // Input and card borders (STATIC DEFINITION KEPT)
+
+        // Status/Semantic
+        'info': '#4AA0D9',    // Secondary brand color for info
+        'success': '#BED163', // Accent brand color for success
+        'warning': '#E49A43', // Primary brand color for warning/caution
+        'error': '#D32F2F',
+
+        // Shadcn compatibility layer (adjusted to remove border conflict)
+        background: "var(--page-bg)",
+        foreground: "var(--text)",
+        input: "var(--border)", // Uses the static 'border' definition
         card: {
-          DEFAULT: "hsl(var(--card) / <alpha-value>)",
-          foreground: "hsl(var(--card-foreground) / <alpha-value>)",
-          border: "hsl(var(--card-border) / <alpha-value>)",
+          DEFAULT: "var(--base)",
+          foreground: "var(--text)",
+          border: "var(--border)",
         },
         popover: {
           DEFAULT: "hsl(var(--popover) / <alpha-value>)",
           foreground: "hsl(var(--popover-foreground) / <alpha-value>)",
-          border: "hsl(var(--popover-border) / <alpha-value>)",
+          border: "var(--border)",
         },
         muted: {
           DEFAULT: "hsl(var(--muted) / <alpha-value>)",
           foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
-          border: "var(--muted-border)",
+          border: "var(--border)",
         },
         destructive: {
-          DEFAULT: "hsl(var(--destructive) / <alpha-value>)",
+          DEFAULT: "var(--error)",
           foreground: "hsl(var(--destructive-foreground) / <alpha-value>)",
-          border: "var(--destructive-border)",
+          border: "var(--border)",
         },
-        ring: "hsl(var(--ring) / <alpha-value>)",
+        ring: "var(--primary)",
         chart: {
           "1": "hsl(var(--chart-1) / <alpha-value>)",
           "2": "hsl(var(--chart-2) / <alpha-value>)",
@@ -88,6 +94,11 @@ export default {
         mono: ["var(--font-mono)"],
       },
       keyframes: {
+        // NEW: Subtle hover/focus pulse for clean interactivity
+        'pulse-hover': {
+          '0%, 100%': { transform: 'scale(1)', 'box-shadow': 'none' },
+          '50%': { transform: 'scale(1.01)', 'box-shadow': '0 4px 6px rgba(0, 0, 0, 0.05)' },
+        },
         "accordion-down": {
           from: { height: "0" },
           to: { height: "var(--radix-accordion-content-height)" },
@@ -98,6 +109,7 @@ export default {
         },
       },
       animation: {
+        'pulse-hover': 'pulse-hover 0.5s ease-in-out',
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
       },

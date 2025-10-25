@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import mermaid from 'mermaid';
 import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut, Maximize2, Move, Maximize } from 'lucide-react';
+import { ZoomIn, ZoomOut, Move, RefreshCcw, Maximize, Minus } from 'lucide-react';
 
 interface MermaidVisualizerProps {
   code: string;
@@ -22,9 +22,11 @@ export default function MermaidVisualizer({ code }: MermaidVisualizerProps) {
       startOnLoad: false,
       theme: 'default',
       securityLevel: 'loose',
+      fontFamily: 'inherit',
     });
   }, []);
 
+  // Core Rendering Logic
   useEffect(() => {
     const renderDiagram = async () => {
       if (!contentRef.current || !code) return;
@@ -32,54 +34,51 @@ export default function MermaidVisualizer({ code }: MermaidVisualizerProps) {
       try {
         setError(null);
         contentRef.current.innerHTML = '';
-        
+
         const { svg } = await mermaid.render('mermaid-diagram', code);
         contentRef.current.innerHTML = svg;
 
-        // Get the SVG element
         const svgElement = contentRef.current.querySelector('svg');
         if (svgElement) {
-          // Get the viewBox to determine the diagram's natural dimensions
           const viewBox = svgElement.getAttribute('viewBox');
-          let naturalWidth = 800; // Default fallback
+          let naturalWidth = 800;
           let naturalHeight = 600;
-          
+
           if (viewBox) {
             const [, , width, height] = viewBox.split(' ').map(Number);
             naturalWidth = width;
             naturalHeight = height;
           }
-          
-          // CRITICAL: Set the SVG to render at its full natural size
-          // Remove any width/height attributes that might constrain it
+
           svgElement.removeAttribute('width');
           svgElement.removeAttribute('height');
-          
-          // Set inline styles to force natural dimensions
+
           svgElement.style.width = `${naturalWidth}px`;
           svgElement.style.height = `${naturalHeight}px`;
           svgElement.style.maxWidth = 'none';
           svgElement.style.maxHeight = 'none';
           svgElement.style.display = 'block';
-          
+
           setContentSize({ width: naturalWidth, height: naturalHeight });
-          
-          // Auto-fit if diagram is larger than container
+
           if (containerRef.current) {
-            const container = containerRef.current.getBoundingClientRect();
-            const padding = 100; // Padding around the diagram
-            
-            const scaleX = (container.width - padding) / naturalWidth;
-            const scaleY = (container.height - padding) / naturalHeight;
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const padding = 60;
+
+            const scaleX = (containerRect.width - padding) / naturalWidth;
+            const scaleY = (containerRect.height - padding) / naturalHeight;
             const autoScale = Math.min(scaleX, scaleY);
-            
-            // Only auto-scale if the diagram is too large
-            if (autoScale < 1) {
+
+            if (autoScale < 1 || autoScale > 1) {
               setScale(autoScale);
             } else {
               setScale(1);
             }
-            setPosition({ x: 0, y: 0 });
+            // Recalculate position for initial centering
+            setPosition({
+              x: (containerRect.width - (naturalWidth * autoScale)) / 2,
+              y: (containerRect.height - (naturalHeight * autoScale)) / 2,
+            });
           }
         }
       } catch (err) {
@@ -91,42 +90,106 @@ export default function MermaidVisualizer({ code }: MermaidVisualizerProps) {
     renderDiagram();
   }, [code]);
 
-  // Zoom functions
+  // Core Zoom Logic
+  const zoom = useCallback((newScale: number, focalPoint?: { x: number, y: number }) => {
+    if (!containerRef.current || !contentRef.current) return;
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const clampedNewScale = Math.max(0.1, Math.min(5, newScale));
+    const scaleDelta = clampedNewScale / scale;
+
+    if (focalPoint) {
+      // Zoom toward cursor
+      setPosition(prev => ({
+        x: focalPoint.x - (focalPoint.x - prev.x) * scaleDelta,
+        y: focalPoint.y - (focalPoint.y - prev.y) * scaleDelta
+      }));
+    } else {
+      // Zoom toward center of container
+      const centerX = containerRect.width / 2;
+      const centerY = containerRect.height / 2;
+
+      setPosition(prev => ({
+        x: centerX - (centerX - prev.x) * scaleDelta,
+        y: centerY - (centerY - prev.y) * scaleDelta
+      }));
+    }
+
+    setScale(clampedNewScale);
+  }, [scale]);
+
+  // INCREASED SPEED: Buttons now use 0.3 additive step
   const handleZoomIn = useCallback(() => {
-    setScale(prev => Math.min(prev + 0.2, 5)); // Max 500%
-  }, []);
+    zoom(scale + 0.3);
+  }, [scale, zoom]);
 
   const handleZoomOut = useCallback(() => {
-    setScale(prev => Math.max(prev - 0.2, 0.1)); // Min 10%
-  }, []);
+    zoom(scale - 0.3);
+  }, [scale, zoom]);
 
   const handleResetZoom = useCallback(() => {
+    if (!containerRef.current || !contentSize.width || !contentSize.height) {
+      setScale(1);
+      setPosition({ x: 0, y: 0 });
+      return;
+    }
+    const containerRect = containerRef.current.getBoundingClientRect();
     setScale(1);
-    setPosition({ x: 0, y: 0 });
-  }, []);
+    setPosition({
+      x: (containerRect.width - contentSize.width) / 2,
+      y: (containerRect.height - contentSize.height) / 2,
+    });
+  }, [contentSize]);
 
   const handleFitToScreen = useCallback(() => {
     if (!containerRef.current || !contentSize.width || !contentSize.height) return;
 
-    const container = containerRef.current.getBoundingClientRect();
-    const padding = 100;
-    
-    const scaleX = (container.width - padding) / contentSize.width;
-    const scaleY = (container.height - padding) / contentSize.height;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const padding = 60;
+
+    const scaleX = (containerRect.width - padding) / contentSize.width;
+    const scaleY = (containerRect.height - padding) / contentSize.height;
     const newScale = Math.min(scaleX, scaleY);
 
     setScale(newScale);
-    setPosition({ x: 0, y: 0 });
+    setPosition({
+      x: (containerRect.width - (contentSize.width * newScale)) / 2,
+      y: (containerRect.height - (contentSize.height * newScale)) / 2,
+    });
   }, [contentSize]);
 
-  // Mouse wheel zoom
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setScale(prev => Math.max(0.1, Math.min(5, prev + delta)));
-    }
-  }, []);
+  // INCREASED SPEED: Divisor changed from 200 to 150
+  const handleWheel = useCallback((e: WheelEvent) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+
+    e.preventDefault();
+
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Increased zoom speed by lowering the divisor
+    const deltaFactor = -e.deltaY / 150;
+
+    const newScale = scale * (1 + deltaFactor);
+
+    zoom(newScale, { x: mouseX, y: mouseY });
+  }, [scale, zoom]);
+
+  // Use native event listener for 'wheel'
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const wheelHandler = (e: WheelEvent) => {
+      handleWheel(e);
+    };
+
+    container.addEventListener('wheel', wheelHandler, { passive: false });
+    return () => container.removeEventListener('wheel', wheelHandler);
+  }, [handleWheel]);
 
   // Pan/drag functions
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -156,16 +219,19 @@ export default function MermaidVisualizer({ code }: MermaidVisualizerProps) {
     setIsDragging(false);
   }, []);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts 
   useEffect(() => {
+    // INCREASED SPEED: Factor changed from 0.05 to 0.07
+    const ZOOM_FACTOR = 0.07;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=')) {
         e.preventDefault();
-        handleZoomIn();
+        zoom(scale * (1 + ZOOM_FACTOR));
       }
       if ((e.ctrlKey || e.metaKey) && e.key === '-') {
         e.preventDefault();
-        handleZoomOut();
+        zoom(scale * (1 - ZOOM_FACTOR));
       }
       if ((e.ctrlKey || e.metaKey) && e.key === '0') {
         e.preventDefault();
@@ -175,78 +241,110 @@ export default function MermaidVisualizer({ code }: MermaidVisualizerProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleZoomIn, handleZoomOut, handleResetZoom, handleFitToScreen]);
+  }, [zoom, scale, handleResetZoom]);
+
+  // Double-click to reset zoom
+  const handleDoubleClick = useCallback(() => {
+    handleResetZoom();
+  }, [handleResetZoom]);
 
   return (
     <div className="h-full w-full flex flex-col bg-white relative">
       {/* Zoom Controls */}
-      <div className="absolute top-4 align-center right-4 z-10 flex flex-col gap-2 bg-white/95 backdrop-blur-sm p-2 rounded-lg shadow-lg border border-neutral">
+      <div className="absolute w-12 items-center top-4 right-4 z-10 flex flex-col gap-0 bg-white shadow-lg rounded-xl border border-border overflow-hidden">
         <Button
           size="sm"
           variant="ghost"
           onClick={handleZoomIn}
-          className="h-8 w-8 p-0 hover:bg-primary/10"
+          className="h-9 w-12 p-0 rounded-none hover:bg-muted/70 transition-colors"
           title="Zoom In (Ctrl/Cmd + +)"
         >
-          <ZoomIn className="h-4 w-4" />
+          <ZoomIn className="h-4 w-4 text-primary" />
         </Button>
+
+        {/* FIX: Added w-12 and text-center to fix width jump issue */}
+        <div className="flex items-center justify-center h-8 bg-base border-y border-border transition-colors">
+          <div className="text-xs font-semibold text-text w-12 text-center">
+            {Math.round(scale * 100)}%
+          </div>
+        </div>
+
         <Button
           size="sm"
           variant="ghost"
           onClick={handleZoomOut}
-          className="h-8 w-8 p-0 hover:bg-primary/10"
+          className="h-9 w-12 p-0 rounded-none hover:bg-muted/70 transition-colors"
           title="Zoom Out (Ctrl/Cmd + -)"
         >
-          <ZoomOut className="h-4 w-4" />
+          <Minus className="h-4 w-4 text-primary" />
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={handleResetZoom}
-          className="h-8 w-8 p-0 hover:bg-primary/10"
-          title="Reset to 100% (Ctrl/Cmd + 0)"
-        >
-          <Maximize2 className="h-4 w-4" />
-        </Button>
+
+        <div className="h-px bg-border"></div>
+
         <Button
           size="sm"
           variant="ghost"
           onClick={handleFitToScreen}
-          className="h-8 w-8 p-0 hover:bg-primary/10"
-          title="Fit to Screen (F)"
+          className="h-9 w-12 p-0 rounded-none hover:bg-muted/70 transition-colors"
+          title="Fit to Screen"
         >
-          <Maximize className="h-4 w-4" />
+          <Maximize className="h-4 w-4 text-neutral" />
         </Button>
-        <div className="h-px bg-neutral/20 my-1"></div>
-        <div className="text-xs text-center text-neutral font-medium px-1">
-          {Math.round(scale * 100)}%
-        </div>
-        {contentSize.width > 0 && (
-          <div className="text-[10px] text-center text-neutral/60 px-1 leading-tight">
-            {Math.round(contentSize.width)} × {Math.round(contentSize.height)}
-          </div>
-        )}
+
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleResetZoom}
+          className="h-9 w-12 p-0 rounded-none hover:bg-muted/70 transition-colors"
+          title="Reset View (Ctrl/Cmd + 0)"
+        >
+          <RefreshCcw className="h-4 w-4 text-neutral" />
+        </Button>
       </div>
 
       {/* Pan Hint */}
       {!isDragging && (scale !== 1 || position.x !== 0 || position.y !== 0) && (
-        <div className="absolute top-4 left-4 z-10 bg-white/95 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg border border-neutral flex items-center gap-2 text-xs text-neutral animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute top-4 left-4 z-10 bg-white/95 backdrop-blur-sm px-3 py-2 rounded-lg shadow-md border border-border flex items-center gap-2 text-xs text-neutral animate-in fade-in slide-in-from-top-2 duration-200">
           <Move className="h-3 w-3" />
           <span>Click and drag to pan</span>
         </div>
       )}
 
+      {/* Instructions */}
+      <div className="absolute w-full bottom-4 z-10">
+        <div className="w-max mx-auto bg-white/95 backdrop-blur-sm px-4 py-2 rounded-lg shadow-md border border-border">
+          <div className="flex items-center gap-4 text-xs text-neutral">
+            <span className="flex items-center gap-1">
+              <kbd className="px-1.5 py-0.5 bg-base rounded border border-border font-mono text-[10px]">Ctrl</kbd>
+              +
+              <kbd className="px-1.5 py-0.5 bg-base rounded border border-border font-mono text-[10px]">Scroll</kbd>
+              or pinch to zoom
+            </span>
+            <span className="text-neutral/50">•</span>
+            <span>Drag to pan</span>
+            <span className="text-neutral/50">•</span>
+            <span>Double-click to reset</span>
+            {contentSize.width > 0 && (
+              <>
+                <span className="text-neutral/50">•</span>
+                <span className="text-[10px] text-neutral/60 leading-none">
+                  Size: {Math.round(contentSize.width)} × {Math.round(contentSize.height)}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Main Content Area */}
       <div
         ref={containerRef}
-        className={`flex-1 overflow-hidden flex items-center justify-center ${
-          isDragging ? 'cursor-grabbing' : 'cursor-grab'
-        }`}
-        onWheel={handleWheel}
+        className={`flex-1 overflow-hidden relative ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
+        onDoubleClick={handleDoubleClick}
       >
         {error ? (
           <div className="text-error text-center">
@@ -257,27 +355,12 @@ export default function MermaidVisualizer({ code }: MermaidVisualizerProps) {
             ref={contentRef}
             style={{
               transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-              transformOrigin: 'center center',
+              transformOrigin: 'top left',
               transition: isDragging ? 'none' : 'transform 0.1s ease-out',
             }}
             className="select-none"
           />
         )}
-      </div>
-
-      {/* Instructions */}
-      <div className="absolute w-max bottom-4 min-w-fit left-1/2 -translate-x-1/2 z-10 bg-white/95 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg border border-neutral">
-        <div className="flex items-center gap-4 text-xs text-neutral">
-          <span className="flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 bg-neutral/10 rounded border border-neutral/20 font-mono text-[10px]">Ctrl</kbd>
-            +
-            <kbd className="px-1.5 py-0.5 bg-neutral/10 rounded border border-neutral/20 font-mono text-[10px]">Scroll</kbd>
-            to zoom
-          </span>
-          <span className="text-neutral/50">•</span>
-          <span>Drag to pan</span>
-          <span className="text-neutral/50">•</span>
-        </div>
       </div>
     </div>
   );

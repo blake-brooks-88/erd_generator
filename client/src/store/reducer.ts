@@ -1,6 +1,6 @@
 import { ProjectState, ProjectAction, ActionTypes } from './types';
 import { Project } from '@/lib/storageService';
-import { storageService } from '@/lib/localStorageAdapter';;
+import { storageService } from '@/lib/localStorageAdapter';
 import { v4 as uuidv4 } from 'uuid';
 
 export const initialState: ProjectState = {
@@ -12,12 +12,12 @@ export const initialState: ProjectState = {
 export function projectReducer(state: ProjectState, action: ProjectAction): ProjectState {
 
   const updateAndSaveCurrentProject = (updateFn: (project: Project) => Project): ProjectState => {
-    if (!state.currentProjectId) return state; 
+    if (!state.currentProjectId) return state;
 
     let updatedProject: Project | undefined;
     const updatedProjects = state.projects.map(p => {
       if (p.id === state.currentProjectId) {
-        updatedProject = updateFn({ ...p });
+        updatedProject = updateFn({ ...p, lastModified: Date.now() }); // Ensure lastModified is updated
         return updatedProject;
       }
       return p;
@@ -50,48 +50,58 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       };
     }
 
-     case ActionTypes.LOAD_PROJECTS: {
-         return state;
-     }
+    case ActionTypes.LOAD_PROJECTS: {
+      // This action seems unused, but return state if encountered
+      return state;
+    }
 
     case ActionTypes.SELECT_PROJECT: {
       return { ...state, currentProjectId: action.payload };
     }
 
-    case ActionTypes.CREATE_PROJECT: {
-      const newProject: Project = {
-        id: action.payload.id,
-        name: action.payload.name,
-        entities: [],
-        lastModified: Date.now(),
-      };
-      const updatedProjects = [...state.projects, newProject];
-      storageService.saveProject(newProject); 
+    // NEW CASE: Handles creation or update (used by saveProjectAndSelect)
+    case ActionTypes.ADD_OR_UPDATE_PROJECT: {
+      const incomingProject = action.payload;
+      let projectExists = false;
+
+      const updatedProjects = state.projects.map(p => {
+        if (p.id === incomingProject.id) {
+          projectExists = true;
+          return incomingProject; // Replace old project with incoming (imported or saved)
+        }
+        return p;
+      });
+
+      if (!projectExists) {
+        updatedProjects.push(incomingProject); // Add as new project
+      }
+
+      // Note: storageService.saveProject(incomingProject) is handled by the calling function (saveProjectAndSelect)
+
       return {
         ...state,
         projects: updatedProjects,
-        currentProjectId: newProject.id, 
       };
     }
 
-     case ActionTypes.RENAME_PROJECT: {
-        const updatedProjects = state.projects.map(p =>
-            p.id === action.payload.id ? { ...p, name: action.payload.name, lastModified: Date.now() } : p
-        );
-        const projectToSave = updatedProjects.find(p => p.id === action.payload.id);
-        if (projectToSave) {
-            storageService.saveProject(projectToSave);
-        }
-        return { ...state, projects: updatedProjects };
-     }
+    case ActionTypes.RENAME_PROJECT: {
+      const updatedProjects = state.projects.map(p =>
+        p.id === action.payload.id ? { ...p, name: action.payload.name, lastModified: Date.now() } : p
+      );
+      const projectToSave = updatedProjects.find(p => p.id === action.payload.id);
+      if (projectToSave) {
+        storageService.saveProject(projectToSave);
+      }
+      return { ...state, projects: updatedProjects };
+    }
 
     case ActionTypes.DELETE_PROJECT: {
       const remainingProjects = state.projects.filter(p => p.id !== action.payload);
       storageService.deleteProject(action.payload);
       let nextProjectId: string | null = null;
       if (state.currentProjectId === action.payload) {
-         const recentId = storageService.getMostRecentProjectId();
-         nextProjectId = remainingProjects.find(p => p.id === recentId)?.id || remainingProjects[0]?.id || null;
+        const recentId = storageService.getMostRecentProjectId();
+        nextProjectId = remainingProjects.find(p => p.id === recentId)?.id || remainingProjects[0]?.id || null;
       } else {
         nextProjectId = state.currentProjectId;
       }
@@ -104,10 +114,10 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
     }
 
     case ActionTypes.ADD_ENTITY:
-        return updateAndSaveCurrentProject(project => ({
-            ...project,
-            entities: [...project.entities, action.payload.entity]
-        }));
+      return updateAndSaveCurrentProject(project => ({
+        ...project,
+        entities: [...project.entities, action.payload.entity]
+      }));
 
     case ActionTypes.DELETE_ENTITY:
       return updateAndSaveCurrentProject(project => ({
@@ -125,20 +135,20 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         ),
       }));
 
-     case ActionTypes.UPDATE_FIELD:
-         return updateAndSaveCurrentProject(project => ({
-            ...project,
-            entities: project.entities.map(e =>
-                e.id === action.payload.entityId
-                    ? {
-                        ...e,
-                        fields: e.fields.map(f =>
-                            f.id === action.payload.fieldId ? { ...f, ...action.payload.updates } : f
-                        )
-                      }
-                    : e
-            )
-         }));
+    case ActionTypes.UPDATE_FIELD:
+      return updateAndSaveCurrentProject(project => ({
+        ...project,
+        entities: project.entities.map(e =>
+          e.id === action.payload.entityId
+            ? {
+              ...e,
+              fields: e.fields.map(f =>
+                f.id === action.payload.fieldId ? { ...f, ...action.payload.updates } : f
+              )
+            }
+            : e
+        )
+      }));
 
     case ActionTypes.DELETE_FIELD:
       return updateAndSaveCurrentProject(project => ({
@@ -151,17 +161,17 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       }));
 
     case ActionTypes.SET_ENTITIES:
-        const result = updateAndSaveCurrentProject(project => ({
-            ...project,
-            entities: action.payload.entities,
-            lastModified: Date.now()
-        }));
-        return result;
+      const result = updateAndSaveCurrentProject(project => ({
+        ...project,
+        entities: action.payload.entities,
+        lastModified: Date.now()
+      }));
+      return result;
 
     default: {
-       const exhaustiveCheck: never = action;
-       console.warn(`Unhandled action type: ${(exhaustiveCheck as any)?.type}`);
-       return state;
+      const exhaustiveCheck: never = action;
+      console.warn(`Unhandled action type: ${(exhaustiveCheck as any)?.type}`);
+      return state;
     }
   }
 }
