@@ -6,13 +6,16 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Home from "@/pages/Home";
 import NotFound from "@/pages/not-found";
 import { ProjectProvider } from "@/store/projectStore";
+import { Router as WouterRouter } from "wouter";
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route component={NotFound} />
-    </Switch>
+    <WouterRouter base="/erd_generator">
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route component={NotFound} />
+      </Switch>
+    </WouterRouter>
   );
 }
 
