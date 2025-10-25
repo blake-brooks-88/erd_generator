@@ -4,6 +4,7 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 export default defineConfig({
+  base: '/erd_generator/', // ✅ required for GitHub Pages
   plugins: [
     react(),
     runtimeErrorOverlay(),
@@ -21,17 +22,19 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.dirname, "client", "src"),
-      "@shared": path.resolve(import.meta.dirname, "shared"),
-      "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      "@": path.resolve(import.meta.url.substring(7), "client/src"),
+      "@shared": path.resolve(import.meta.url.substring(7), "shared"),
+      "@assets": path.resolve(import.meta.url.substring(7), "attached_assets"),
     },
   },
-  root: path.resolve(import.meta.dirname, "client"),
+  root: path.resolve(import.meta.url.substring(7), "client"),
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist"),
+    outDir: path.resolve(import.meta.url.substring(7), "dist"),
     emptyOutDir: true,
+    rollupOptions: {
+      input: path.resolve(import.meta.url.substring(7), "client/index.html"),
+    },
   },
-  base: '/erd_generator/',
   server: {
     fs: {
       strict: true,
