@@ -7,10 +7,11 @@ import Home from "@/pages/Home";
 import NotFound from "@/pages/not-found";
 import { ProjectProvider } from "@/store/projectStore";
 import { Router as WouterRouter } from "wouter";
+import { useHashLocation } from "wouter/use-hash-location";
 
 function Router() {
   return (
-    <WouterRouter base="/erd_generator">
+    <WouterRouter hook={useHashLocation}>
       <Switch>
         <Route path="/" component={Home} />
         <Route component={NotFound} />
